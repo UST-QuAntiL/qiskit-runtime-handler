@@ -1,5 +1,5 @@
 # ******************************************************************************
-#  Copyright (c) 2020 University of Stuttgart
+#  Copyright (c) 2021 University of Stuttgart
 #
 #  See the NOTICE file(s) distributed with this work for additional
 #  information regarding copyright ownership.
@@ -34,5 +34,5 @@ migrate = Migrate(app, db)
 from app import routes, result_model, errors
 
 app.redis = Redis.from_url(app.config['REDIS_URL'])
-app.execute_queue = rq.Queue('qiskit-runtime-handler', connection=app.redis, default_timeout=3600)
-app.logger.setLevel(logging.INFO)
+app.queue = rq.Queue('qiskit-runtime-handler', connection=app.redis, default_timeout=3600)
+app.logger.setLevel(logging.DEBUG)

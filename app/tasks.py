@@ -22,13 +22,18 @@ from rq import get_current_job
 
 from app.result_model import Result
 import json
+import logging
 
 
-def generate_hybrid_program(token, qpu_name, shots):
-    """Calculate the current calibration matrix for the given QPU and save the result in db"""
+def generate_hybrid_program(beforeLoop, afterLoop, loopCondition, requiredProgramsPath):
+    """Generate the hybrid program for the given candidate and save the result in db"""
     job = get_current_job()
 
     # TODO
+    logging.info(beforeLoop)
+    print(afterLoop)
+    print(loopCondition)
+    print(requiredProgramsPath)
 
     result = Result.query.get(job.get_id())
     result.error = json.dumps({'error': 'Failed to generate hybrid program'})

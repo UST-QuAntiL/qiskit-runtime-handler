@@ -21,27 +21,50 @@ from app import app, db
 from app.result_model import Result
 from flask import jsonify, abort, request
 import logging
+import tempfile
+import os
 import json
 
 
 @app.route('/qiskit-runtime-handler/api/v1.0/generate-hybrid-program', methods=['POST'])
 def generate_hybrid_program():
     """Put hybrid program generation job in queue. Return location of the later result."""
-    logging.info('Received request: ', request)
-    if not request.json or not 'qpu-name' in request.json or not 'token' in request.json:
+
+    # extract required input data
+    if not request.form.get('beforeLoop') or not request.form.get('afterLoop') \
+            or not request.form.get('loopCondition') \
+            or not request.files['requiredPrograms']:
+        print('Not all required parameters available in request: ')
+        if not request.form.get('beforeLoop'):
+            print('beforeLoop parameter is missing!')
+        if not request.form.get('afterLoop'):
+            print('afterLoop parameter is missing!')
+        if not request.form.get('loopCondition'):
+            print('loopCondition parameter is missing!')
+        if not request.files['requiredPrograms']:
+            print('requiredPrograms parameter is missing!')
         abort(400)
-    qpu_name = request.json['qpu-name']
-    token = request.json['token']
-    shots = request.json.get('shots', 8192)
+    beforeLoop = request.form.get('beforeLoop')
+    afterLoop = request.form.get('afterLoop')
+    loopCondition = request.form.get('loopCondition')
+    requiredPrograms = request.files['requiredPrograms']
+    app.logger.info('Received request for hybrid program generation...')
 
-    # TODO: params
+    # TODO
+    print(requiredPrograms)
+    new_file, filename = tempfile.mkstemp()
+    requiredPrograms.save(os.path.join(filename))
+    print(filename)
 
-    job = app.execute_queue.enqueue('app.tasks.generate_hybrid_program', qpu_name=qpu_name, token=token,
-                                    shots=shots, job_timeout=18000)
+    # execute job asynchronously
+    job = app.queue.enqueue('app.tasks.generate_hybrid_program', beforeLoop=beforeLoop, afterLoop=afterLoop,
+                            loopCondition=loopCondition, requiredProgramsPath=filename, job_timeout=18000)
+    app.logger.info('Added job for hybrid program generation to the queue...')
     result = Result(id=job.get_id())
     db.session.add(result)
     db.session.commit()
 
+    # return location of task object to retrieve final result
     logging.info('Returning HTTP response to client...')
     content_location = '/qiskit-runtime-handler/api/v1.0/results/' + result.id
     response = jsonify({'Location': content_location})
