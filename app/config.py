@@ -27,3 +27,4 @@ class Config(object):
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     REDIS_URL = os.environ.get('REDIS_URL') or 'redis://'
+    UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or os.path.join(basedir, 'files')

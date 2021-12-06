@@ -19,11 +19,12 @@
 
 from app import app, db
 from app.result_model import Result
-from flask import jsonify, abort, request
+from flask import jsonify, abort, request, send_from_directory, url_for
 import logging
-import tempfile
 import os
 import json
+import string
+import random
 
 
 @app.route('/qiskit-runtime-handler/api/v1.0/generate-hybrid-program', methods=['POST'])
@@ -50,15 +51,20 @@ def generate_hybrid_program():
     requiredPrograms = request.files['requiredPrograms']
     app.logger.info('Received request for hybrid program generation...')
 
-    # TODO
-    print(requiredPrograms)
-    new_file, filename = tempfile.mkstemp()
-    requiredPrograms.save(os.path.join(filename))
-    print(filename)
+    # store file with required programs in local file and forward path to the workers
+    directory = app.config["UPLOAD_FOLDER"]
+    app.logger.info('Storing file comprising required programs at folder: ' + str(directory))
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    randomString = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
+    fileName = 'required-programs' + randomString + '.zip'
+    requiredPrograms.save(os.path.join(directory, fileName))
+    url = url_for('download_file', name=os.path.basename(fileName))
+    app.logger.info('File available via URL: ' + str(url))
 
     # execute job asynchronously
     job = app.queue.enqueue('app.tasks.generate_hybrid_program', beforeLoop=beforeLoop, afterLoop=afterLoop,
-                            loopCondition=loopCondition, requiredProgramsPath=filename, job_timeout=18000)
+                            loopCondition=loopCondition, requiredProgramsUrl=url, job_timeout=18000)
     app.logger.info('Added job for hybrid program generation to the queue...')
     result = Result(id=job.get_id())
     db.session.add(result)
@@ -82,6 +88,11 @@ def get_result(result_id):
         return jsonify({'id': result.id, 'complete': result.complete, 'result': result_dict}), 200
     else:
         return jsonify({'id': result.id, 'complete': result.complete}), 200
+
+
+@app.route('/qiskit-runtime-handler/api/v1.0/uploads/<name>')
+def download_file(name):
+    return send_from_directory(app.config["UPLOAD_FOLDER"], name)
 
 
 @app.route('/qiskit-runtime-handler/api/v1.0/version', methods=['GET'])
