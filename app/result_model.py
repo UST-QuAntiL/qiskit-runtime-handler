@@ -17,13 +17,13 @@
 #  limitations under the License.
 # ******************************************************************************
 
-from sqlalchemy import Binary
+from sqlalchemy import LargeBinary
 from app import db
 
 
 class Result(db.Model):
     id = db.Column(db.String(36), primary_key=True)
-    result = db.Column('lob', Binary)
+    result = db.Column('lob', LargeBinary)
     error = db.Column(db.String(1200), default="")
     complete = db.Column(db.Boolean, default=False)
 
