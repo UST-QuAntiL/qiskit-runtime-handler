@@ -1,0 +1,11 @@
+Flask==1.1.2
+Flask-Migrate==3.1.0
+Flask-RESTful==0.3.9
+redis==4.0.2
+requests==2.23.0
+rq==1.4.1
+urllib3==1.26.7
+Werkzeug==2.0.2
+numpy~=1.19.0
+gunicorn
+SQLAlchemy~=1.4.27
