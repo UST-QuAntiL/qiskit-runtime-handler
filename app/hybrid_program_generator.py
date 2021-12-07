@@ -16,3 +16,23 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 # ******************************************************************************
+
+from app import app
+
+
+def create_hybrid_program(beforeLoop, afterLoop, loopCondition, taskIdProgramMap):
+    # TODO
+    print(taskIdProgramMap)
+    print(beforeLoop)
+    print(afterLoop)
+    print(loopCondition)
+
+    for task in beforeLoop:
+        app.logger.info('Adding logic for task with ID ' + str(task) + ' before loop!')
+
+    for task in afterLoop:
+        app.logger.info('Adding logic for task with ID ' + str(task) + ' after loop!')
+
+    result = {'error': 'TODO'}
+
+    return result

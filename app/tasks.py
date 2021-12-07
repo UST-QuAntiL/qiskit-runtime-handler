@@ -20,18 +20,16 @@
 from os import listdir
 from tempfile import mkdtemp
 
-from app import db, app
+from app import db, app, hybrid_program_generator
 from rq import get_current_job
 
 from app.result_model import Result
-import json
 import zipfile
 import os
 import urllib.request
 
 
 def search_python_file(directory):
-
     # only .py are supported, also nested in zip files
     containedPythonFiles = [f for f in listdir(os.path.join(directory)) if f.endswith('.py')]
     if len(containedPythonFiles) >= 1:
@@ -90,14 +88,20 @@ def generate_hybrid_program(beforeLoop, afterLoop, loopCondition, requiredProgra
             if pythonFile is not None:
                 taskIdProgramMap[zipContent] = pythonFile
 
-    # TODO
-    print(taskIdProgramMap)
-    print(beforeLoop)
-    print(afterLoop)
-    print(loopCondition)
-    print(downloadPath)
+    # create the hybrid program and a corresponding invoking agent
+    programCreationResult = hybrid_program_generator.create_hybrid_program(beforeLoop, afterLoop, loopCondition,
+                                                                           taskIdProgramMap)
 
+    # insert results into job object
     result = Result.query.get(job.get_id())
-    result.error = json.dumps({'error': 'Failed to generate hybrid program'})
+    if 'error' not in programCreationResult:
+        app.logger.info('Program generation successful!')
+        result.program = programCreationResult.program
+        result.agent = programCreationResult.agent
+    else:
+        app.logger.info('Program generation failed!')
+        result.error = programCreationResult['error']
+
+    # update database
     result.complete = True
     db.session.commit()

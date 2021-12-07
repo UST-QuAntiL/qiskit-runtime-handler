@@ -22,7 +22,6 @@ from app.result_model import Result
 from flask import jsonify, abort, request, send_from_directory, url_for
 import logging
 import os
-import json
 import string
 import random
 
@@ -59,7 +58,7 @@ def generate_hybrid_program():
     randomString = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
     fileName = 'required-programs' + randomString + '.zip'
     requiredPrograms.save(os.path.join(directory, fileName))
-    url = url_for('download_file', name=os.path.basename(fileName))
+    url = url_for('download_uploaded_file', name=os.path.basename(fileName))
     app.logger.info('File available via URL: ' + str(url))
 
     # execute job asynchronously
@@ -84,15 +83,37 @@ def get_result(result_id):
     """Return result when it is available."""
     result = Result.query.get(result_id)
     if result.complete:
-        result_dict = json.loads(result.result)
-        return jsonify({'id': result.id, 'complete': result.complete, 'result': result_dict}), 200
+        if result.error:
+            return jsonify({'id': result.id, 'complete': result.complete, 'error': result.error}), 200
+        else:
+            # create result directory if not existing
+            directory = app.config["RESULT_FOLDER"]
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+
+            # create files and serve as URL
+            programName = os.path.join(directory, result.id + '-program')
+            with open(programName, 'wb') as file:
+                file.write(result.program)
+            agentName = os.path.join(directory, result.id + '-agent')
+            with open(agentName, 'wb') as file:
+                file.write(result.agent)
+
+            return jsonify({'id': result.id, 'complete': result.complete,
+                            'programUrl': url_for('download_generated_file', name=result.id + '-program'),
+                            'agentUrl': url_for('download_generated_file', name=result.id + '-agent')}), 200
     else:
         return jsonify({'id': result.id, 'complete': result.complete}), 200
 
 
 @app.route('/qiskit-runtime-handler/api/v1.0/uploads/<name>')
-def download_file(name):
+def download_uploaded_file(name):
     return send_from_directory(app.config["UPLOAD_FOLDER"], name)
+
+
+@app.route('/qiskit-runtime-handler/api/v1.0/hybrid-programs/<name>')
+def download_generated_file(name):
+    return send_from_directory(app.config["RESULT_FOLDER"], name)
 
 
 @app.route('/qiskit-runtime-handler/api/v1.0/version', methods=['GET'])

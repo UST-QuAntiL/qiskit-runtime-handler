@@ -28,3 +28,4 @@ class Config(object):
 
     REDIS_URL = os.environ.get('REDIS_URL') or 'redis://'
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or os.path.join(basedir, 'files')
+    RESULT_FOLDER = os.environ.get('RESULT_FOLDER') or os.path.join(basedir, 'generated-files')
