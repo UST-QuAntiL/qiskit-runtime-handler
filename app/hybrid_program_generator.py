@@ -26,43 +26,57 @@ from redbaron import RedBaron, NameNode
 
 
 def create_hybrid_program(beforeLoop, afterLoop, loopCondition, taskIdProgramMap):
-
     # directory containing all templates required for generation
-    templatesDirectory = os.path.join(os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__))), 'templates')
+    templatesDirectory = os.path.join(os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__))),
+                                      'templates')
 
     # RedBaron object containing all information about the hybrid program to generate
     with open(os.path.join(templatesDirectory, 'qiskit_runtime_program.py'), "r") as source_code:
         hybridProgramBaron = RedBaron(source_code.read())
 
+    # retrieve all task names related to programs that have to be merged into the hybrid program
+    taskNames = []
+    if beforeLoop:
+        beforeLoop = beforeLoop.split(",")
+        taskNames.extend(beforeLoop)
+    if afterLoop:
+        afterLoop = afterLoop.split(",")
+        taskNames.extend(afterLoop)
+
+    # add methods from the given programs to the hybrid program
+    programMetaData = {}
+    for task in taskNames:
+        if task not in taskIdProgramMap:
+            return {'error': 'Unable to find program related to task with ID: ' + task}
+        try:
+            hybridProgramBaron, methodName, inputParameterList = handle_program(hybridProgramBaron,
+                                                                                taskIdProgramMap[task], task)
+            app.logger.info('Added methods for task with ID ' + task + '. Method name to call from root: ' + methodName)
+            app.logger.info('Call requires input parameters: ' + str(inputParameterList))
+            programMetaData[task] = {'methodName': methodName, 'inputParameters': tuple(inputParameterList)}
+        except Exception as error:
+            app.logger.error(error)
+            return {'error': 'Failed to analyse and incorporate Python file for task with ID ' + task + '!\n'
+                             + str(error)}
+
     # TODO
-    print(hybridProgramBaron)
-    print(len(hybridProgramBaron))
     print(taskIdProgramMap)
     print(beforeLoop)
     print(afterLoop)
     print(loopCondition)
+    print(programMetaData)
 
     if beforeLoop:
-        beforeLoop = beforeLoop.split(",")
         for task in beforeLoop:
             app.logger.info('Adding logic for task with ID ' + str(task) + ' before loop!')
 
-            if task not in taskIdProgramMap:
-                return {'error': 'Unable to find program related to task with ID: ' + task}
-            try:
-                hybridProgramBaron, methodName = handle_program(hybridProgramBaron, taskIdProgramMap[task], task)
-            except Exception as error:
-                return {'error': 'Failed to analyse and incorporate Python file for task with ID ' + task + '!\n'
-                                 + str(error)}
+            # TODO
 
     if afterLoop:
-        afterLoop = afterLoop.split(",")
         for task in afterLoop:
             app.logger.info('Adding logic for task with ID ' + str(task) + ' after loop!')
 
-            if task not in taskIdProgramMap:
-                return {'error': 'Unable to find program related to task with ID: ' + task}
-            hybridProgramBaron = handle_program(hybridProgramBaron, taskIdProgramMap[task])
+            # TODO
 
     # write generated hybrid program code to result file
     tmp = tempfile.NamedTemporaryFile(suffix=".py", delete=False)
@@ -73,7 +87,7 @@ def create_hybrid_program(beforeLoop, afterLoop, loopCondition, taskIdProgramMap
     if os.path.exists('result.zip'):
         os.remove('result.zip')
     zipObj = ZipFile('result.zip', 'w')
-    zipObj.write(tmp.name, 'hybrid_program.py') # TODO: add metadata
+    zipObj.write(tmp.name, 'hybrid_program.py')  # TODO: add metadata
     zipObj.close()
     zipObj = open('result.zip', "rb")
     data = zipObj.read()
@@ -104,14 +118,14 @@ def handle_program(hybridProgramBaron, path, task):
         executeNode = executeNodes[0]
 
         # add the execute method and all depending methods to the RedBaron object
-        methodName = add_method_recursively(hybridProgramBaron, taskFile, executeNode, task)
+        methodName, inputParameterList = add_method_recursively(hybridProgramBaron, taskFile, executeNode, task)
 
-    return hybridProgramBaron, methodName
+    return hybridProgramBaron, methodName, inputParameterList
 
 
 def add_method_recursively(hybridProgramBaron, taskFile, methodNode, prefix):
     """Add the given method node and all dependent methods, i.e., called methods to the given RedBaron object."""
-    print('Recursively adding methods. Current method name: ' + methodNode.name)
+    app.logger.info('Recursively adding methods. Current method name: ' + methodNode.name)
 
     # get assignment nodes and check if they call local methods
     assignmentNodes = methodNode.find_all('assignment')
@@ -156,12 +170,16 @@ def add_method_recursively(hybridProgramBaron, taskFile, methodNode, prefix):
     # add prefix for corresponding file to the method name to avoid name clashes when merging multiple files
     methodNode.name = prefix + '_' + methodNode.name
 
-    print(methodNode.help())
+    # determine input parameters of the method
+    inputParameterList = []
+    inputParameterNodes = methodNode.arguments.find_all('def_argument')
+    for inputParameterNode in inputParameterNodes:
+        inputParameterList.append(inputParameterNode.target.value)
 
     # add the method to the given RedBaron object
     hybridProgramBaron.append('\n')
     hybridProgramBaron.append(methodNode)
-    return methodNode.name
+    return methodNode.name, inputParameterList
 
 
 def is_native_reference(name):
