@@ -35,7 +35,7 @@ def search_python_file(directory):
     # only .py are supported, also nested in zip files
     containedPythonFiles = [f for f in listdir(os.path.join(directory)) if f.endswith('.py')]
     if len(containedPythonFiles) >= 1:
-        app.logger.info('Found Python file with name: ' + str(containedPythonFiles))
+        app.logger.info('Found Python file with name: ' + str(containedPythonFiles[0]))
 
         # we only support one file, in case there are multiple files, try the first one
         return os.path.join(directory, containedPythonFiles[0])
@@ -71,6 +71,9 @@ def generate_hybrid_program(beforeLoop, afterLoop, loopCondition, requiredProgra
     app.logger.info('Downloading required programs from: ' + str(url))
     downloadPath, response = urllib.request.urlretrieve(url, "requiredPrograms.zip")
 
+    # dict to store task IDs and the paths to the related programs
+    taskIdProgramMap = {}
+
     # extract the zip file
     with zipfile.ZipFile(downloadPath, "r") as zip_ref:
         directory = mkdtemp()
@@ -82,11 +85,13 @@ def generate_hybrid_program(beforeLoop, afterLoop, loopCondition, requiredProgra
         for zipContent in zipContents:
             app.logger.info('Searching for program related to task with ID: ' + str(zipContent))
 
-            # TODO: store python file together with task id
+            # search for Python file and store with ID if found
             pythonFile = search_python_file(os.path.join(directory, zipContent))
-            print(pythonFile)
+            if pythonFile is not None:
+                taskIdProgramMap[zipContent] = pythonFile
 
     # TODO
+    print(taskIdProgramMap)
     print(beforeLoop)
     print(afterLoop)
     print(loopCondition)
