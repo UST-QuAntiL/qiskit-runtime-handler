@@ -19,10 +19,11 @@
 import os
 import tempfile
 from os.path import basename
+import random
 from zipfile import ZipFile
 
 from app import app
-from redbaron import RedBaron, NameNode
+from redbaron import RedBaron
 
 
 def create_hybrid_program(beforeLoop, afterLoop, loopCondition, taskIdProgramMap):
@@ -109,6 +110,20 @@ def handle_program(hybridProgramBaron, path, task):
     with open(path, "r") as source_code:
         taskFile = RedBaron(source_code.read())
 
+        # get all imports from the file
+        importListFile = taskFile.find_all('import')
+        importListFile.extend(taskFile.find_all('FromImportNode'))
+
+        # get last import node of the current RedBaron object
+        importListHybridProgram = hybridProgramBaron.find_all('import')
+        importListHybridProgram.extend(hybridProgramBaron.find_all('FromImportNode'))
+        index = 0
+        for i in importListHybridProgram:
+            index = max(index, hybridProgramBaron.index(i))
+
+        # for now all imports are added independent of their occurrence
+        hybridProgramBaron[index:index] = importListFile
+
         # find the 'execute' method within the file
         executeNodes = taskFile.find_all('def', name='execute')
 
@@ -128,7 +143,11 @@ def add_method_recursively(hybridProgramBaron, taskFile, methodNode, prefix):
     app.logger.info('Recursively adding methods. Current method name: ' + methodNode.name)
 
     # get assignment nodes and check if they call local methods
-    assignmentNodes = methodNode.find_all('assignment')
+    assignmentNodes = methodNode.find_all('assignment', recursive=True)
+
+    # TODO
+    foundQiskitExecute = replace_qiskit_execute(assignmentNodes, methodNode)
+    print(foundQiskitExecute)
 
     # iterate over all assignment nodes and check if they rely on a local method call
     for assignmentNode in assignmentNodes:
@@ -180,6 +199,66 @@ def add_method_recursively(hybridProgramBaron, taskFile, methodNode, prefix):
     hybridProgramBaron.append('\n')
     hybridProgramBaron.append(methodNode)
     return methodNode.name, inputParameterList
+
+
+def replace_qiskit_execute(assignmentNodes, methodNode):
+    """Search for a qiskit.execute() command which has to be replaced by backend.run() for Qiskit Runtime"""
+
+    # get a name for the qiskit runtime backend that is not already occupied
+    nameOccupied = True
+    name = 'backend'
+    while nameOccupied:
+        if methodNode.arguments.find('def_argument', target=lambda target: target and (target.value == name)):
+            name = name + str(random.randint(0, 9))
+        else:
+            nameOccupied = False
+
+    qiskitExecuteFound = False
+    for assignmentNode in assignmentNodes:
+
+        # assignment requires a value
+        if not assignmentNode.value:
+            continue
+
+        # call to qiskit.execute is represented as AtomtrailersNode
+        # (see https://redbaron.readthedocs.io/en/latest/nodes_reference.html#atomtrailersnode)
+        if assignmentNode.value.type != 'atomtrailers':
+            continue
+
+        # contains at least two name nodes (qiskit, execute) and one call node
+        if len(assignmentNode.value) < 3:
+            continue
+
+        # first node must be a name node with value qiskit
+        if assignmentNode.value[0].value != 'qiskit':
+            continue
+
+        # second node must be a name node with value execute
+        if assignmentNode.value[1].value != 'execute':
+            continue
+
+        # third node must be a call node
+        if assignmentNode.value[2].type != 'call':
+            continue
+
+        # check if circuit to execute is explicitly defined under the 'experiments' parameters
+        argumentName = assignmentNode.value[2].value.find('call_argument',
+                                                          target=lambda target: target and (target.value == 'experiments'))
+
+        # otherwise the circuit is the first positional argument
+        if argumentName:
+            argumentName = argumentName.value
+        else:
+            argumentName = assignmentNode.value[2].value[0]
+
+        # replace the call with the qiskit runtime backend call
+        assignmentNode.value = name + ".run(" + argumentName.value + ")"
+        qiskitExecuteFound = True
+
+    # adapt the method signature with the new argument
+    if qiskitExecuteFound:
+        methodNode.arguments.append(name)
+    return qiskitExecuteFound
 
 
 def is_native_reference(name):
