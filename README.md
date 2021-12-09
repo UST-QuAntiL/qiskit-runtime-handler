@@ -1,10 +1,24 @@
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 # qiskit-runtime-handler
 
-TODO
+This service takes a workflow fragment realizing a hybrid algorithm as input and generated a [Qiskit Runtime](https://quantum-computing.ibm.com/lab/docs/iql/runtime/) program to benefit from speedups and reduce queueing times.
+Additionally, an agent is generated which handles the transfer of input/output parameters between the Qiskit Runtime program and a workflow.
 
 ## Docker Setup
 
-TODO
+* Clone repository:
+```
+git clone https://github.com/UST-QuAntiL/qiskit-runtime-handler.git
+```
+
+* Start the containers using the [docker-compose file]:
+```
+docker-compose pull
+docker-compose up
+```
+
+Now the qiskit-runtime-handler is available on http://localhost:8889/.
 
 ## Local Setup
 
