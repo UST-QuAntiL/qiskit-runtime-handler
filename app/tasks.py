@@ -20,42 +20,15 @@
 from os import listdir
 from tempfile import mkdtemp
 
-from app import db, app, hybrid_program_generator
+from app import db, app
+from app.hybrid_program_generation import hybrid_program_generator
 from rq import get_current_job
 
+from app.hybrid_program_generation.zip_handler import search_python_file
 from app.result_model import Result
 import zipfile
 import os
 import urllib.request
-
-
-def search_python_file(directory):
-    # only .py are supported, also nested in zip files
-    containedPythonFiles = [f for f in listdir(os.path.join(directory)) if f.endswith('.py')]
-    if len(containedPythonFiles) >= 1:
-        app.logger.info('Found Python file with name: ' + str(containedPythonFiles[0]))
-
-        # we only support one file, in case there are multiple files, try the first one
-        return os.path.join(directory, containedPythonFiles[0])
-
-    # check if there are nested Python files
-    containedZipFiles = [f for f in listdir(os.path.join(directory)) if f.endswith('.zip')]
-    for zip in containedZipFiles:
-
-        # extract the zip file
-        with zipfile.ZipFile(os.path.join(directory, zip), "r") as zip_ref:
-            folder = mkdtemp()
-            app.logger.info('Extracting to directory: ' + str(folder))
-            zip_ref.extractall(folder)
-
-            # recursively search within zip
-            result = search_python_file(folder)
-
-            # return if we found the first Python file
-            if result is not None:
-                return os.path.join(folder, result)
-
-    return None
 
 
 def generate_hybrid_program(beforeLoop, afterLoop, loopCondition, requiredProgramsUrl):
