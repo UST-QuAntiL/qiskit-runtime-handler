@@ -21,12 +21,13 @@ import json
 import os
 import tempfile
 from os.path import basename
-from zipfile import ZipFile
 
 from app import app
 from redbaron import RedBaron
 
 from app.hybrid_program_generation.method_handler import get_output_parameters_of_execute, add_method_recursively
+from app.hybrid_program_generation.polling_agent_handler import generate_polling_agent
+from app.hybrid_program_generation.zip_handler import zip_polling_agent, zip_runtime_program
 
 
 def create_hybrid_program(beforeLoop, afterLoop, loopCondition, taskIdProgramMap):
@@ -87,17 +88,18 @@ def create_hybrid_program(beforeLoop, afterLoop, loopCondition, taskIdProgramMap
         source_code.write(generate_program_metadata(inputParameters, outputParameters))
 
     # zip generated hybrid program and meta data files
-    if os.path.exists('../result.zip'):
-        os.remove('../result.zip')
-    zipObj = ZipFile('../result.zip', 'w')
-    zipObj.write(hybridProgramTemp.name, 'hybrid_program.py')
-    zipObj.write(metaDataTemp.name, 'hybrid_program.json')
-    zipObj.close()
-    zipObj = open('../result.zip', "rb")
-    data = zipObj.read()
+    hybridProgramData = zip_runtime_program(hybridProgramTemp, metaDataTemp)
 
-    # TODO: generate invocation stub
-    result = {'program': data}
+    # generate polling agend and write to file
+    pollingAgentTemp = tempfile.NamedTemporaryFile(suffix=".py", delete=False)
+    with open(pollingAgentTemp.name, "w") as source_code:
+        source_code.write(generate_polling_agent(inputParameters, outputParameters))
+
+    # zip polling agent
+    pollingAgentData = zip_polling_agent(templatesDirectory, pollingAgentTemp)
+
+    # return generated Qiskit Runtime program and corresponding polling agent
+    result = {'program': hybridProgramData, 'agent': pollingAgentData}
     return result
 
 

@@ -52,3 +52,30 @@ def search_python_file(directory):
                 return os.path.join(folder, result)
 
     return None
+
+
+def zip_runtime_program(hybridProgramTemp, metaDataTemp):
+    if os.path.exists('../hybrid_program.zip'):
+        os.remove('../hybrid_program.zip')
+    zipObj = zipfile.ZipFile('../hybrid_program.zip', 'w')
+    zipObj.write(hybridProgramTemp.name, 'hybrid_program.py')
+    zipObj.write(metaDataTemp.name, 'hybrid_program.json')
+    zipObj.close()
+    zipObj = open('../hybrid_program.zip', "rb")
+    return zipObj.read()
+
+
+def zip_polling_agent(templatesDirectory, pollingAgentTemp):
+    # zip generated polling agent, afterwards zip resulting file with required Dockerfile
+    if os.path.exists('../polling_agent.zip'):
+        os.remove('../polling_agent.zip')
+    if os.path.exists('../polling_agent_wrapper.zip'):
+        os.remove('../polling_agent_wrapper.zip')
+    zipObj = zipfile.ZipFile('../polling_agent.zip', 'w')
+    zipObj.write(pollingAgentTemp.name, 'polling_agent.py')
+    zipObj.close()
+    zipObj = zipfile.ZipFile('../polling_agent_wrapper.zip', 'w')
+    zipObj.write('../polling_agent.zip', 'service.zip')
+    zipObj.write(os.path.join(templatesDirectory, 'Dockerfile'), 'Dockerfile')
+    zipObj = open('../polling_agent_wrapper.zip', "rb")
+    return zipObj.read()
