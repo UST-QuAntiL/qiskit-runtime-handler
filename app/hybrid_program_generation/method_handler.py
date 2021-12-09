@@ -213,4 +213,4 @@ def get_output_parameters_of_execute(taskFile):
 
 def is_native_reference(name):
     """Check if the given name belongs to a natively supported method of Python"""
-    return name in ['int', 'str', 'len', 'filter', 'enumerate', 'float', 'list', 'dict']
+    return name in ['int', 'str', 'len', 'filter', 'enumerate', 'float', 'list', 'dict', 'pow']

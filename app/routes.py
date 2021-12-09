@@ -92,16 +92,16 @@ def get_result(result_id):
                 os.makedirs(directory)
 
             # create files and serve as URL
-            programName = os.path.join(directory, result.id + '-program')
+            programName = os.path.join(directory, result.id + '-program.zip')
             with open(programName, 'wb') as file:
                 file.write(result.program)
-            agentName = os.path.join(directory, result.id + '-agent')
+            agentName = os.path.join(directory, result.id + '-agent.zip')
             with open(agentName, 'wb') as file:
                 file.write(result.agent)
 
             return jsonify({'id': result.id, 'complete': result.complete,
-                            'programUrl': url_for('download_generated_file', name=result.id + '-program'),
-                            'agentUrl': url_for('download_generated_file', name=result.id + '-agent')}), 200
+                            'programUrl': url_for('download_generated_file', name=result.id + '-program.zip'),
+                            'agentUrl': url_for('download_generated_file', name=result.id + '-agent.zip')}), 200
     else:
         return jsonify({'id': result.id, 'complete': result.complete}), 200
 

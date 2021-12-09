@@ -165,7 +165,7 @@ def generate_main_method(hybridProgramBaron, beforeLoop, afterLoop, loopConditio
     # get output variables
     output = 'serialized_result = {'
     for assignedVariable in assignedVariables:
-        output += '"' + assignedVariable + '":' + assignedVariable + ',\n'
+        output += '"' + assignedVariable + '": ' + assignedVariable + ',\n'
     output += '}'
     mainMethodNode.append('# serialize and return output')
     mainMethodNode.append(output)

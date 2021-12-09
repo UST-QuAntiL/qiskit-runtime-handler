@@ -5,7 +5,7 @@ volumes:
 
 services:
   redis:
-    image: redis:latest
+    image: redis:6.2.6
     command: --port 5040
     ports:
       - "5040:5040"
