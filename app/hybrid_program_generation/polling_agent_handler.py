@@ -42,6 +42,9 @@ def generate_polling_agent(inputParameters, outputParameters):
         # get the poll method from the template
         pollDefNode = pollingAgentBaron.find('def', name='poll')
 
+        # get the try catch block in the method
+        tryNode = pollDefNode.value.find('try')
+
         # create polling request with generated agent name
         pollingBody = '{"workerId": "' + pollingAgentName + '", "maxTasks": 1, "topics": [{"topicName": topic, ' \
                                                             '"lockDuration": 100000000}]}'
@@ -49,8 +52,7 @@ def generate_polling_agent(inputParameters, outputParameters):
         pollingNode.value = pollingBody
 
         # get the position of the input placeholders within the template
-        ifNode = pollDefNode.value.find('try').value.find('ifelseblock').value[0].value.find('for').value \
-            .find('ifelseblock').find('if')
+        ifNode = tryNode.value.find('ifelseblock').value[0].value.find('for').value.find('ifelseblock').find('if')
         inputNodeIndex = ifNode.index(ifNode.find('comment', recursive=True, value='##### LOAD INPUT DATA SECTION'))
 
         # add input parameters to the polling agent
@@ -85,8 +87,6 @@ def generate_polling_agent(inputParameters, outputParameters):
                                                         }
                                                         }
 
-            # TODO: except is wrongly formatted
-
         # remove the quotes added by json.dumps for the variables in the target file
         outputJson = json.dumps(outputDict)
         for outputParameter in outputParameters:
@@ -98,4 +98,9 @@ def generate_polling_agent(inputParameters, outputParameters):
         # update the result body with the output parameters
         outputBodyNode.value = outputJson
 
-    return pollingAgentBaron.dumps()
+    # workaround due to RedBaron bug which wrongly idents the exception
+    pollingAgentString = pollingAgentBaron.dumps()
+    pollingAgentString = pollingAgentString.replace("except Exception:", "    except Exception:")
+    print(pollingAgentString)
+
+    return pollingAgentString
