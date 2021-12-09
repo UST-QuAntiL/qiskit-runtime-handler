@@ -101,6 +101,5 @@ def generate_polling_agent(inputParameters, outputParameters):
     # workaround due to RedBaron bug which wrongly idents the exception
     pollingAgentString = pollingAgentBaron.dumps()
     pollingAgentString = pollingAgentString.replace("except Exception:", "    except Exception:")
-    print(pollingAgentString)
 
     return pollingAgentString

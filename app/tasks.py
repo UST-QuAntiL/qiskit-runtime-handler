@@ -69,8 +69,8 @@ def generate_hybrid_program(beforeLoop, afterLoop, loopCondition, requiredProgra
     result = Result.query.get(job.get_id())
     if 'error' not in programCreationResult:
         app.logger.info('Program generation successful!')
-        result.program = programCreationResult.program
-        result.agent = programCreationResult.agent
+        result.program = programCreationResult['program']
+        result.agent = programCreationResult['agent']
     else:
         app.logger.info('Program generation failed!')
         result.error = programCreationResult['error']
