@@ -66,6 +66,7 @@ def add_method_recursively(hybridProgramBaron, taskFile, methodNode, prefix):
             raise Exception('Unable to find method in program that is referenced: ' + calledMethodNameNode.value)
 
         # update invocation with new method name
+        app.logger.info('Found new method invocation of local method: ' + calledMethodNameNode.value)
         addedMethodName, inputParameterList, signatureExtended = add_method_recursively(hybridProgramBaron,
                                                                                         taskFile,
                                                                                         recursiveMethodNode,
@@ -74,15 +75,18 @@ def add_method_recursively(hybridProgramBaron, taskFile, methodNode, prefix):
 
         # check if the signature of the invoked method was extended by the Qiskit Runtime backend
         if signatureExtended:
+            app.logger.info('Extending method invocation due to extended method signature!')
 
             # generate parameter name for the current method if not already done
             if not parameterName:
                 parameterName = get_unused_method_parameter('backend', methodNode)
+                app.logger.info('Qiskit Runtime backend not yet available as variable in this method. '
+                                'Adding with name: ' + parameterName)
 
                 # append to method signature
                 methodNode.arguments.append(parameterName)
 
-            # extend the method invokation with the new parameter
+            # extend the method invocation with the new parameter
             assignmentValues.value[1].append(parameterName)
             signatureExtendedWithBackend = True
 
@@ -103,6 +107,7 @@ def add_method_recursively(hybridProgramBaron, taskFile, methodNode, prefix):
 
 def replace_qiskit_execute(assignmentNodes, methodNode):
     """Search for a qiskit.execute() command which has to be replaced by backend.run() for Qiskit Runtime"""
+    app.logger.info('Checking for qiskit.execute call in method: ' + methodNode.name)
 
     # get a name for the qiskit runtime backend that is not already occupied
     name = get_unused_method_parameter('backend', methodNode)
@@ -144,14 +149,16 @@ def replace_qiskit_execute(assignmentNodes, methodNode):
         if argumentName:
             argumentName = argumentName.value
         else:
-            argumentName = assignmentNode.value[2].value[0]
+            argumentName = assignmentNode.value[2].value[0].value
 
         # replace the call with the qiskit runtime backend call
+        app.logger.info('Replacing qiskit.execute with call to Qiskit Runtime backend in method: ' + methodNode.name)
         assignmentNode.value = name + ".run(" + argumentName.value + ")"
         qiskitExecuteFound = True
 
     # adapt the method signature with the new argument
     if qiskitExecuteFound:
+        app.logger.info('Extending signature to support passing the required backend!')
         methodNode.arguments.append(name)
         return qiskitExecuteFound, name
     return qiskitExecuteFound, None
