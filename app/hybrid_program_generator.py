@@ -65,15 +65,12 @@ def create_hybrid_program(beforeLoop, afterLoop, loopCondition, taskIdProgramMap
 
     # generate the main method of the Qiskit Runtime program
     try:
-        hybridProgramBaron = generate_main_method(hybridProgramBaron, beforeLoop, afterLoop,
-                                                  loopCondition, programMetaData)
+        hybridProgramBaron, inputParameters, outputParameters = generate_main_method(hybridProgramBaron, beforeLoop,
+                                                                                     afterLoop, loopCondition,
+                                                                                     programMetaData)
     except Exception as error:
         app.logger.error(error)
         return {'error': str(error)}
-
-    # TODO
-    print(taskIdProgramMap)
-    print(programMetaData)
 
     # write generated hybrid program code to result file
     tmp = tempfile.NamedTemporaryFile(suffix=".py", delete=False)
@@ -105,7 +102,9 @@ def generate_main_method(hybridProgramBaron, beforeLoop, afterLoop, loopConditio
     mainMethodNode = mainMethodNodes[0]
 
     # get the position of the return node within the template to insert the logic directly before
-    startPosition = mainMethodNode.index(mainMethodNode.find('return')) - 1
+    returnPosition = mainMethodNode.index(mainMethodNode.find('return'))
+    mainMethodNode.remove(mainMethodNode[returnPosition])
+    startPosition = returnPosition - 1
 
     # add while loop which is terminated if the loop condition is met in between the before and after tasks
     mainMethodNode[startPosition:startPosition] = "while True:\n    pass"
@@ -134,8 +133,29 @@ def generate_main_method(hybridProgramBaron, beforeLoop, afterLoop, loopConditio
                                                                                   assignedVariables, task,
                                                                                   programMetaData)
 
-    # TODO: load overall input, return output
-    return hybridProgramBaron
+    # get values from required external input parameters
+    for requiredInput in requiredInputs:
+        if requiredInput.startswith('backend'):
+            # map the Qiskit Runtime backend to all backend parameters
+            mainMethodNode.insert(startPosition, requiredInput + ' = backend')
+        else:
+            # retrieve from input args
+            mainMethodNode.insert(startPosition, requiredInput + ' = kwargs["' + requiredInput + '"]')
+    mainMethodNode.insert(startPosition, '# loading input parameters')
+    mainMethodNode.insert(startPosition, '\n')
+
+    # get output variables
+    output = 'serialized_result = {'
+    for assignedVariable in assignedVariables:
+        output += '"' + assignedVariable + '":' + assignedVariable + ',\n'
+    output += '}'
+    mainMethodNode.append('# serialize and return output')
+    mainMethodNode.append(output)
+    mainMethodNode.append('user_messenger.publish(serialized_result, final=True)')
+    mainMethodNode.append('\n')
+    mainMethodNode.append('\n')
+
+    return hybridProgramBaron, requiredInputs, assignedVariables
 
 
 def add_program_invocation(whileNode, requiredInputs, assignedVariables, task, programMetaData):
