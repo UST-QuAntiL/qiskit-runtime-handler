@@ -31,6 +31,8 @@ from app.hybrid_program_generation.zip_handler import zip_polling_agent, zip_run
 
 
 def create_hybrid_program(beforeLoop, afterLoop, loopCondition, taskIdProgramMap):
+    app.logger.info('Creating Qiskit Runtime program with tasks before loop: ' + str(beforeLoop))
+    app.logger.info('Creating Qiskit Runtime program with tasks after loop: ' + str(afterLoop))
 
     # directory containing all templates required for generation
     templatesDirectory = os.path.join(os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__))),
@@ -42,16 +44,18 @@ def create_hybrid_program(beforeLoop, afterLoop, loopCondition, taskIdProgramMap
 
     # retrieve all task names related to programs that have to be merged into the hybrid program
     taskNames = []
-    if beforeLoop:
+    if beforeLoop and beforeLoop != 'null':
         beforeLoop = beforeLoop.split(",")
         taskNames.extend(beforeLoop)
-    if afterLoop:
+    if afterLoop and afterLoop != 'null':
         afterLoop = afterLoop.split(",")
         taskNames.extend(afterLoop)
 
     # add methods from the given programs to the hybrid program
     programMetaData = {}
+    app.logger.info('Adding programs for the following tasks: ' + str(taskNames))
     for task in taskNames:
+        app.logger.info('Searching for program for task ID: ' + str(task))
         if task not in taskIdProgramMap:
             return {'error': 'Unable to find program related to task with ID: ' + task}
         try:
@@ -70,9 +74,11 @@ def create_hybrid_program(beforeLoop, afterLoop, loopCondition, taskIdProgramMap
 
     # generate the main method of the Qiskit Runtime program
     try:
+        app.logger.info('Starting generation of main method for Qiskit Runtime program...')
         hybridProgramBaron, inputParameters, outputParameters = generate_main_method(hybridProgramBaron, beforeLoop,
                                                                                      afterLoop, loopCondition,
                                                                                      programMetaData)
+        app.logger.info('Successfully generated main method for Qiskit Runtime program...')
     except Exception as error:
         app.logger.error(error)
         return {'error': str(error)}
@@ -127,7 +133,7 @@ def generate_main_method(hybridProgramBaron, beforeLoop, afterLoop, loopConditio
     requiredInputs = []
 
     # add tasks before the loop
-    if beforeLoop:
+    if beforeLoop and beforeLoop != 'null':
         for task in beforeLoop:
             whileNode, requiredInputs, assignedVariables = add_program_invocation(whileNode, requiredInputs,
                                                                                   assignedVariables, task,
@@ -139,7 +145,7 @@ def generate_main_method(hybridProgramBaron, beforeLoop, afterLoop, loopConditio
     whileNode.value.append('if not ' + loopCondition + ':\n    break')
 
     # add tasks after the loop
-    if afterLoop:
+    if afterLoop and afterLoop != 'null':
         for task in afterLoop:
             whileNode, requiredInputs, assignedVariables = add_program_invocation(whileNode, requiredInputs,
                                                                                   assignedVariables, task,
