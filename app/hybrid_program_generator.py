@@ -50,34 +50,30 @@ def create_hybrid_program(beforeLoop, afterLoop, loopCondition, taskIdProgramMap
         if task not in taskIdProgramMap:
             return {'error': 'Unable to find program related to task with ID: ' + task}
         try:
-            hybridProgramBaron, methodName, inputParameterList = handle_program(hybridProgramBaron,
-                                                                                taskIdProgramMap[task], task)
+            hybridProgramBaron, methodName, inputParameterList, outputParameterList = handle_program(hybridProgramBaron,
+                                                                                                     taskIdProgramMap[
+                                                                                                         task], task)
             app.logger.info('Added methods for task with ID ' + task + '. Method name to call from root: ' + methodName)
             app.logger.info('Call requires input parameters: ' + str(inputParameterList))
-            programMetaData[task] = {'methodName': methodName, 'inputParameters': tuple(inputParameterList)}
+            programMetaData[task] = {'methodName': methodName,
+                                     'inputParameters': tuple(inputParameterList),
+                                     'outputParameters': tuple(outputParameterList)}
         except Exception as error:
             app.logger.error(error)
             return {'error': 'Failed to analyse and incorporate Python file for task with ID ' + task + '!\n'
                              + str(error)}
 
+    # generate the main method of the Qiskit Runtime program
+    try:
+        hybridProgramBaron = generate_main_method(hybridProgramBaron, beforeLoop, afterLoop,
+                                                  loopCondition, programMetaData)
+    except Exception as error:
+        app.logger.error(error)
+        return {'error': str(error)}
+
     # TODO
     print(taskIdProgramMap)
-    print(beforeLoop)
-    print(afterLoop)
-    print(loopCondition)
     print(programMetaData)
-
-    if beforeLoop:
-        for task in beforeLoop:
-            app.logger.info('Adding logic for task with ID ' + str(task) + ' before loop!')
-
-            # TODO
-
-    if afterLoop:
-        for task in afterLoop:
-            app.logger.info('Adding logic for task with ID ' + str(task) + ' after loop!')
-
-            # TODO
 
     # write generated hybrid program code to result file
     tmp = tempfile.NamedTemporaryFile(suffix=".py", delete=False)
@@ -96,6 +92,70 @@ def create_hybrid_program(beforeLoop, afterLoop, loopCondition, taskIdProgramMap
     # TODO
     result = {'program': data}
     return result
+
+
+def generate_main_method(hybridProgramBaron, beforeLoop, afterLoop, loopCondition, programMetaData):
+    """Generate the main method executing the hybrid loop"""
+    app.logger.info('Generating main method for Qiskit Runtime program!')
+
+    # find the main method stub
+    mainMethodNodes = hybridProgramBaron.find_all('def', name='main')
+    if len(mainMethodNodes) != 1:
+        raise Exception('Unable to find main method in Qiskit Runtime template!')
+    mainMethodNode = mainMethodNodes[0]
+
+    # get the position of the return node within the template to insert the logic directly before
+    startPosition = mainMethodNode.index(mainMethodNode.find('return')) - 1
+
+    # add while loop which is terminated if the loop condition is met in between the before and after tasks
+    mainMethodNode[startPosition:startPosition] = "while True:\n    pass"
+    whileNode = mainMethodNode.find('while')
+
+    # lists of already assigned variables and required overall inputs
+    assignedVariables = []
+    requiredInputs = []
+
+    # add tasks before the loop
+    if beforeLoop:
+        for task in beforeLoop:
+            whileNode, requiredInputs, assignedVariables = add_program_invocation(whileNode, requiredInputs,
+                                                                                  assignedVariables, task,
+                                                                                  programMetaData)
+
+    # add loop condition and break loop if meet
+    loopCondition = loopCondition.replace('${', '').replace('}', '')  # remove Camunda specific evaluation
+    whileNode.value.append('\n')
+    whileNode.value.append('if not ' + loopCondition + ':\n    break')
+
+    # add tasks after the loop
+    if afterLoop:
+        for task in afterLoop:
+            whileNode, requiredInputs, assignedVariables = add_program_invocation(whileNode, requiredInputs,
+                                                                                  assignedVariables, task,
+                                                                                  programMetaData)
+
+    # TODO: load overall input, return output
+    return hybridProgramBaron
+
+
+def add_program_invocation(whileNode, requiredInputs, assignedVariables, task, programMetaData):
+    """Add the invocation for the program representing the given tasks under the given while node"""
+    app.logger.info('Adding logic for task with ID ' + str(task))
+    metaData = programMetaData[task]
+    outputParameters = ', '.join(metaData['outputParameters'])
+    inputParameters = ', '.join(metaData['inputParameters'])
+
+    # generate invocation
+    invocation = outputParameters + ' = ' + metaData['methodName'] + '(' + inputParameters + ')'
+    whileNode.value.append(invocation)
+
+    # check if invocation used not set variables and request them as input
+    for inputParameter in metaData['inputParameters']:
+        if inputParameter not in assignedVariables:
+            requiredInputs.append(inputParameter)
+    assignedVariables.extend(metaData['outputParameters'])
+
+    return whileNode, requiredInputs, assignedVariables
 
 
 def handle_program(hybridProgramBaron, path, task):
@@ -132,10 +192,18 @@ def handle_program(hybridProgramBaron, path, task):
             raise Exception('Unable to find execute method in program: ' + basename(path))
         executeNode = executeNodes[0]
 
-        # add the execute method and all depending methods to the RedBaron object
-        methodName, inputParameterList = add_method_recursively(hybridProgramBaron, taskFile, executeNode, task)
+        # get the output parameters for the given program
+        outputParameterList = get_output_parameters_of_execute(taskFile)
+        if outputParameterList is None:
+            raise Exception('Unable to retrieve output parameters of execute method in program: ' + basename(path))
 
-    return hybridProgramBaron, methodName, inputParameterList
+        # add the execute method and all depending methods to the RedBaron object
+        methodName, inputParameterList, signatureExtendedWithBackend = add_method_recursively(hybridProgramBaron,
+                                                                                              taskFile,
+                                                                                              executeNode,
+                                                                                              task)
+
+    return hybridProgramBaron, methodName, inputParameterList, outputParameterList
 
 
 def add_method_recursively(hybridProgramBaron, taskFile, methodNode, prefix):
@@ -145,9 +213,8 @@ def add_method_recursively(hybridProgramBaron, taskFile, methodNode, prefix):
     # get assignment nodes and check if they call local methods
     assignmentNodes = methodNode.find_all('assignment', recursive=True)
 
-    # TODO
-    foundQiskitExecute = replace_qiskit_execute(assignmentNodes, methodNode)
-    print(foundQiskitExecute)
+    # replace all calls of qiskit.execute in this method to use the Qiskit Runtime backend
+    signatureExtendedWithBackend, parameterName = replace_qiskit_execute(assignmentNodes, methodNode)
 
     # iterate over all assignment nodes and check if they rely on a local method call
     for assignmentNode in assignmentNodes:
@@ -183,8 +250,25 @@ def add_method_recursively(hybridProgramBaron, taskFile, methodNode, prefix):
             raise Exception('Unable to find method in program that is referenced: ' + calledMethodNameNode.value)
 
         # update invocation with new method name
-        addedMethodName = add_method_recursively(hybridProgramBaron, taskFile, recursiveMethodNode, prefix)
+        addedMethodName, inputParameterList, signatureExtended = add_method_recursively(hybridProgramBaron,
+                                                                                        taskFile,
+                                                                                        recursiveMethodNode,
+                                                                                        prefix)
         calledMethodNameNode.value = addedMethodName
+
+        # check if the signature of the invoked method was extended by the Qiskit Runtime backend
+        if signatureExtended:
+
+            # generate parameter name for the current method if not already done
+            if not parameterName:
+                parameterName = get_unused_method_parameter('backend', methodNode)
+
+                # append to method signature
+                methodNode.arguments.append(parameterName)
+
+            # extend the method invokation with the new parameter
+            assignmentValues.value[1].append(parameterName)
+            signatureExtendedWithBackend = True
 
     # add prefix for corresponding file to the method name to avoid name clashes when merging multiple files
     methodNode.name = prefix + '_' + methodNode.name
@@ -198,20 +282,14 @@ def add_method_recursively(hybridProgramBaron, taskFile, methodNode, prefix):
     # add the method to the given RedBaron object
     hybridProgramBaron.append('\n')
     hybridProgramBaron.append(methodNode)
-    return methodNode.name, inputParameterList
+    return methodNode.name, inputParameterList, signatureExtendedWithBackend
 
 
 def replace_qiskit_execute(assignmentNodes, methodNode):
     """Search for a qiskit.execute() command which has to be replaced by backend.run() for Qiskit Runtime"""
 
     # get a name for the qiskit runtime backend that is not already occupied
-    nameOccupied = True
-    name = 'backend'
-    while nameOccupied:
-        if methodNode.arguments.find('def_argument', target=lambda target: target and (target.value == name)):
-            name = name + str(random.randint(0, 9))
-        else:
-            nameOccupied = False
+    name = get_unused_method_parameter('backend', methodNode)
 
     qiskitExecuteFound = False
     for assignmentNode in assignmentNodes:
@@ -243,7 +321,8 @@ def replace_qiskit_execute(assignmentNodes, methodNode):
 
         # check if circuit to execute is explicitly defined under the 'experiments' parameters
         argumentName = assignmentNode.value[2].value.find('call_argument',
-                                                          target=lambda target: target and (target.value == 'experiments'))
+                                                          target=lambda target: target and (
+                                                                  target.value == 'experiments'))
 
         # otherwise the circuit is the first positional argument
         if argumentName:
@@ -258,7 +337,55 @@ def replace_qiskit_execute(assignmentNodes, methodNode):
     # adapt the method signature with the new argument
     if qiskitExecuteFound:
         methodNode.arguments.append(name)
-    return qiskitExecuteFound
+        return qiskitExecuteFound, name
+    return qiskitExecuteFound, None
+
+
+def get_unused_method_parameter(prefix, methodNode):
+    """Get a variable name that was not already used in the given method using the given prefix"""
+    name = prefix
+    while True:
+        if methodNode.arguments.find('def_argument', target=lambda target: target and (target.value == name)) \
+                or check_if_variable_used(methodNode, name):
+            name = name + str(random.randint(0, 9))
+        else:
+            return name
+
+
+def check_if_variable_used(methodNode, name):
+    """Check if a variable with the given name is assigned in the given method"""
+    for assignment in methodNode.find_all('assignment'):
+
+        # if assignment has name node on the left side, compare the name of the variable with the given name
+        if assignment.target.type == 'name' and assignment.target.value == name:
+            return True
+
+        # if assignment has tuple node on the left, check each entry
+        if assignment.target.type == 'tuple' and assignment.target.find('name', value=name):
+            return True
+
+    return False
+
+
+def get_output_parameters_of_execute(taskFile):
+    """Get the set of output parameters of an execute method within a program"""
+
+    # get the invocation of the execute method to extract the output parameters
+    invokeExecuteNode = taskFile.find('assign', recursive=True,
+                                      value=lambda value: value.type == 'atomtrailers'
+                                                          and len(value.value) == 2
+                                                          and value.value[0].value == 'execute')
+
+    # generation has to be aborted if retrieval of output parameters fails
+    if not invokeExecuteNode:
+        return None
+
+    # only one output parameter
+    if invokeExecuteNode.target.type == 'name':
+        return [invokeExecuteNode.target.value]
+    else:
+        # set of output parameters
+        return [parameter.value for parameter in invokeExecuteNode.target.value]
 
 
 def is_native_reference(name):
