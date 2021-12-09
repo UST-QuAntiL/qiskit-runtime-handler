@@ -16,6 +16,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 # ******************************************************************************
+
+import json
 import os
 import tempfile
 from os.path import basename
@@ -73,20 +75,26 @@ def create_hybrid_program(beforeLoop, afterLoop, loopCondition, taskIdProgramMap
         return {'error': str(error)}
 
     # write generated hybrid program code to result file
-    tmp = tempfile.NamedTemporaryFile(suffix=".py", delete=False)
-    with open(tmp.name, "w") as source_code:
+    hybridProgramTemp = tempfile.NamedTemporaryFile(suffix=".py", delete=False)
+    with open(hybridProgramTemp.name, "w") as source_code:
         source_code.write(hybridProgramBaron.dumps())
+
+    # generate meta data and write to file
+    metaDataTemp = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+    with open(metaDataTemp.name, "w") as source_code:
+        source_code.write(generate_program_metadata(inputParameters, outputParameters))
 
     # zip generated hybrid program and meta data files
     if os.path.exists('result.zip'):
         os.remove('result.zip')
     zipObj = ZipFile('result.zip', 'w')
-    zipObj.write(tmp.name, 'hybrid_program.py')  # TODO: add metadata
+    zipObj.write(hybridProgramTemp.name, 'hybrid_program.py')
+    zipObj.write(metaDataTemp.name, 'hybrid_program.json')
     zipObj.close()
     zipObj = open('result.zip', "rb")
     data = zipObj.read()
 
-    # TODO
+    # TODO: generate invocation stub
     result = {'program': data}
     return result
 
@@ -156,6 +164,24 @@ def generate_main_method(hybridProgramBaron, beforeLoop, afterLoop, loopConditio
     mainMethodNode.append('\n')
 
     return hybridProgramBaron, requiredInputs, assignedVariables
+
+
+def generate_program_metadata(inputParameters, outputParameters):
+    meta_data = {'name': "generated-qiskit-runtime-program",
+                 'description': "Hybrid program generated based on a workflow fragment.",
+                 'max_execution_time': "18000"}
+
+    inputParametersList = []
+    for inputParameter in inputParameters:
+        inputParametersList.append({"name": inputParameter, "type": "string"})
+    meta_data['parameters'] = inputParametersList
+
+    outputParametersList = []
+    for outputParameter in outputParameters:
+        outputParametersList.append({"name": outputParameter, "type": "string"})
+    meta_data['return_values'] = outputParametersList
+
+    return json.dumps(meta_data)
 
 
 def add_program_invocation(whileNode, requiredInputs, assignedVariables, task, programMetaData):
