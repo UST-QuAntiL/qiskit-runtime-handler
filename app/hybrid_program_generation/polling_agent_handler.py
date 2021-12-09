@@ -16,22 +16,73 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 # ******************************************************************************
-
+import json
 import os
+import random
+import string
 
 from redbaron import RedBaron
 
 
 def generate_polling_agent(inputParameters, outputParameters):
-    """TODO"""
+    """Generate a polling agent for the generated Qiskit Runtime program exchanging the
+    required input/output with the Camunda BPMN engine"""
 
     # directory containing all templates required for generation
     templatesDirectory = os.path.join(os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__))),
                                       'templates')
 
+    # generate random name for the polling agent
+    pollingAgentName = ''.join(random.choices(string.ascii_uppercase + string.digits, k=12))
+
     # RedBaron object containing the polling agent template
-    with open(os.path.join(templatesDirectory, 'qiskit_runtime_program.py'), "r") as source_code:
+    with open(os.path.join(templatesDirectory, 'polling_agent_template.py'), "r") as source_code:
         pollingAgentBaron = RedBaron(source_code.read())
 
-    # TODO
+        # get the poll method from the template
+        pollDefNode = pollingAgentBaron.find('def', name='poll')
+
+        # create polling request with generated agent name
+        pollingBody = '{"workerId": "' + pollingAgentName + '", "maxTasks": 1, "topics": [{"topicName": topic, ' \
+                                                            '"lockDuration": 100000000}]}'
+        pollingNode = pollDefNode.find('assign', target=lambda target: target and (target.value == 'body'))
+        pollingNode.value = pollingBody
+
+        # get the position of the input placeholders within the template
+        ifNode = pollDefNode.value.find('try').value.find('ifelseblock').value[0].value.find('for').value \
+            .find('ifelseblock').find('if')
+        inputNodeIndex = ifNode.index(ifNode.find('comment', recursive=True, value='##### LOAD INPUT DATA SECTION'))
+
+        # add input parameters to the polling agent
+        for inputParameter in inputParameters:
+            print(inputParameter)
+        print(ifNode.help())
+        # TODO: add input parameters
+
+        # get the position of the output placeholders within the template
+        outputNodeIndex = ifNode.index(ifNode.find('comment', recursive=True, value='##### STORE OUTPUT DATA SECTION'))
+        outputBodyNode = ifNode.find('assign', target=lambda target: target and (target.value == 'body'))
+
+        # add output parameters
+        outputDict = {"workerId": pollingAgentName, "variables": {}}
+        for outputParameter in outputParameters:
+            # encode output parameter as file to circumvent the Camunda size restrictions on strings
+            encoding = 'encoded_' + outputParameter + ' = base64.b64encode(str.encode(result["' + \
+                       outputParameter + '"])).decode("utf-8") '
+            ifNode.insert(outputNodeIndex + 1, encoding)
+
+            # add to final result object send to Camunda
+            outputDict["variables"][outputParameter] = {"value": 'encoded_' + outputParameter, "type": "File",
+                                                        "valueInfo": {
+                                                            "filename": outputParameter + ".txt",
+                                                            "encoding": ""
+                                                        }
+                                                        }
+
+        # remove the placeholder
+        ifNode.remove(ifNode[outputNodeIndex])
+
+        # update the result body with the output parameters
+        outputBodyNode.value = json.dumps(outputDict)
+
     return pollingAgentBaron.dumps()
