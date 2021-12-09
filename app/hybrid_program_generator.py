@@ -169,17 +169,17 @@ def generate_main_method(hybridProgramBaron, beforeLoop, afterLoop, loopConditio
 def generate_program_metadata(inputParameters, outputParameters):
     meta_data = {'name': "generated-qiskit-runtime-program",
                  'description': "Hybrid program generated based on a workflow fragment.",
-                 'max_execution_time': "18000"}
+                 'max_execution_time': 18000,
+                 "spec": {"parameters": {"properties": {}, "required": []},
+                          "return_values": {"properties": {}}}}
 
-    inputParametersList = []
     for inputParameter in inputParameters:
-        inputParametersList.append({"name": inputParameter, "type": "string"})
-    meta_data['parameters'] = inputParametersList
+        if not inputParameter.startswith('backend'):
+            meta_data['spec']['parameters']['properties'][inputParameter] = {"type": "string"}
+            meta_data['spec']['parameters']['required'].append(inputParameter)
 
-    outputParametersList = []
     for outputParameter in outputParameters:
-        outputParametersList.append({"name": outputParameter, "type": "string"})
-    meta_data['return_values'] = outputParametersList
+        meta_data['spec']['return_values']['properties'][outputParameter] = {"type": "string"}
 
     return json.dumps(meta_data)
 
@@ -197,7 +197,7 @@ def add_program_invocation(whileNode, requiredInputs, assignedVariables, task, p
 
     # check if invocation used not set variables and request them as input
     for inputParameter in metaData['inputParameters']:
-        if inputParameter not in assignedVariables:
+        if inputParameter not in assignedVariables and inputParameter not in requiredInputs:
             requiredInputs.append(inputParameter)
     assignedVariables.extend(metaData['outputParameters'])
 
