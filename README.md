@@ -2,17 +2,17 @@
 
 # qiskit-runtime-handler
 
-This service takes a workflow fragment realizing a hybrid algorithm as input and generated a [Qiskit Runtime](https://quantum-computing.ibm.com/lab/docs/iql/runtime/) program to benefit from speedups and reduce queueing times.
+This service takes a workflow fragment realizing a hybrid algorithm as input and generates a [Qiskit Runtime](https://quantum-computing.ibm.com/lab/docs/iql/runtime/) program to benefit from speedups and reduced queuing times.
 Additionally, an agent is generated which handles the transfer of input/output parameters between the Qiskit Runtime program and a workflow.
 
 ## Docker Setup
 
-* Clone repository:
+* Clone the repository:
 ```
 git clone https://github.com/UST-QuAntiL/qiskit-runtime-handler.git
 ```
 
-* Start the containers using the [docker-compose file]:
+* Start the containers using the [docker-compose file](docker-compose.yml):
 ```
 docker-compose pull
 docker-compose up
