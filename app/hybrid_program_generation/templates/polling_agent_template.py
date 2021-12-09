@@ -26,7 +26,6 @@ def poll():
                       + str(externalTask.get('id')))
                 variables = externalTask.get('variables')
                 if externalTask.get('topicName') == topic:
-
                     # load input data
                     ibmq_token = variables.get('ibmq_token').get('value')
                     ibmq_backend = variables.get('ibmq_backend').get('value')
@@ -57,7 +56,8 @@ def poll():
                     body = {}
                     response = requests.post(pollingEndpoint + '/' + externalTask.get('id') + '/complete', json=body)
                     print('Status code of response message: ' + str(response.status_code))
-    except:
+
+    except Exception:
         print('Exception during polling!')
 
     threading.Timer(8, poll).start()

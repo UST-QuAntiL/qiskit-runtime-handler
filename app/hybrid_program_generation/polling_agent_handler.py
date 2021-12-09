@@ -55,9 +55,15 @@ def generate_polling_agent(inputParameters, outputParameters):
 
         # add input parameters to the polling agent
         for inputParameter in inputParameters:
-            print(inputParameter)
-        print(ifNode.help())
-        # TODO: add input parameters
+            inputRetrievalIfStatement = 'if variables.get("' + inputParameter + '").get("type") == "String":'
+            inputRetrievalIfBranch = '\n    ' + inputParameter + ' = variables.get("' + inputParameter + '").get("value")'
+            downloadEndpoint = 'camundaEndpoint + "/process-instance/" + externalTask.get("processInstanceId") + "/variables/' + inputParameter + '/data"'
+            inputRetrievalElseBranch = '\nelse:\n    ' + inputParameter + ' = download_data(' + downloadEndpoint + ')'
+            inputRetrieval = inputRetrievalIfStatement + inputRetrievalIfBranch + inputRetrievalElseBranch
+            ifNode.insert(inputNodeIndex + 1, inputRetrieval)
+
+        # remove the placeholder
+        ifNode.remove(ifNode[inputNodeIndex])
 
         # get the position of the output placeholders within the template
         outputNodeIndex = ifNode.index(ifNode.find('comment', recursive=True, value='##### STORE OUTPUT DATA SECTION'))
@@ -79,10 +85,17 @@ def generate_polling_agent(inputParameters, outputParameters):
                                                         }
                                                         }
 
+            # TODO: except is wrongly formatted
+
+        # remove the quotes added by json.dumps for the variables in the target file
+        outputJson = json.dumps(outputDict)
+        for outputParameter in outputParameters:
+            outputJson = outputJson.replace('"encoded_' + outputParameter + '"', 'encoded_' + outputParameter)
+
         # remove the placeholder
         ifNode.remove(ifNode[outputNodeIndex])
 
         # update the result body with the output parameters
-        outputBodyNode.value = json.dumps(outputDict)
+        outputBodyNode.value = outputJson
 
     return pollingAgentBaron.dumps()
