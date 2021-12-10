@@ -62,10 +62,10 @@ def zip_runtime_program(hybridProgramTemp, metaDataTemp):
     zipObj.write(metaDataTemp.name, 'hybrid_program.json')
     zipObj.close()
     zipObj = open('../hybrid_program.zip', "rb")
-    return zipObj.read()
+    return zipObj.read(), '../hybrid_program.zip'
 
 
-def zip_polling_agent(templatesDirectory, pollingAgentTemp):
+def zip_polling_agent(templatesDirectory, pollingAgentTemp, hybridProgram):
     # zip generated polling agent, afterwards zip resulting file with required Dockerfile
     if os.path.exists('../polling_agent.zip'):
         os.remove('../polling_agent.zip')
@@ -73,6 +73,7 @@ def zip_polling_agent(templatesDirectory, pollingAgentTemp):
         os.remove('../polling_agent_wrapper.zip')
     zipObj = zipfile.ZipFile('../polling_agent.zip', 'w')
     zipObj.write(pollingAgentTemp.name, 'polling_agent.py')
+    zipObj.write(hybridProgram, 'hybrid_program.zip')
     zipObj.close()
     zipObj = zipfile.ZipFile('../polling_agent_wrapper.zip', 'w')
     zipObj.write('../polling_agent.zip', 'service.zip')

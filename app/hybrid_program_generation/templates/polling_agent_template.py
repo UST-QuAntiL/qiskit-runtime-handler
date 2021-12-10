@@ -1,5 +1,8 @@
 import threading
 import base64
+import zipfile
+from tempfile import mkdtemp
+
 from qiskit import *
 import requests
 from urllib.request import urlopen
@@ -27,7 +30,6 @@ def poll():
                 variables = externalTask.get('variables')
                 if externalTask.get('topicName') == topic:
                     # load input data
-                    ibmq_token = variables.get('ibmq_token').get('value')
                     ibmq_backend = variables.get('ibmq_backend').get('value')
                     ##### LOAD INPUT DATA SECTION
 
@@ -36,7 +38,6 @@ def poll():
                         print(f"interim result: {interim_result}")
 
                     # invoke Qiskit Runtime program
-                    provider = IBMQ.enable_account(ibmq_token)
                     backend = provider.get_backend(ibmq_backend)
                     program_inputs = {}
                     options = {'backend_name': backend.name()}
@@ -69,6 +70,20 @@ def download_data(url):
     return str(data)
 
 
+# deploy the related Qiskit Runtime program on service startup
+provider = IBMQ.enable_account(os.environ['IBMQ_TOKEN'])
+directory_to_extract_to = mkdtemp()
+with zipfile.ZipFile('hybrid_program.zip', 'r') as zip_ref:
+    zip_ref.extractall(directory_to_extract_to)
+hybrid_program_data = os.path.join(os.getcwd(), os.path.join(directory_to_extract_to, "hybrid_program.py"))
+hybrid_program_json = os.path.join(os.getcwd(), os.path.join(directory_to_extract_to, "hybrid_program.json"))
+program_id = provider.runtime.upload_program(
+    data=hybrid_program_data,
+    metadata=hybrid_program_json
+)
+print('Uploaded Qiskit Runtime program with ID: ', program_id)
+
+# start polling for requests
 camundaEndpoint = os.environ['CAMUNDA_ENDPOINT']
 pollingEndpoint = camundaEndpoint + '/external-task'
 topic = os.environ['CAMUNDA_TOPIC']

@@ -56,6 +56,7 @@ def generate_polling_agent(inputParameters, outputParameters):
         inputNodeIndex = ifNode.index(ifNode.find('comment', recursive=True, value='##### LOAD INPUT DATA SECTION'))
 
         # add input parameters to the polling agent
+        inputDict = {}
         for inputParameter in inputParameters:
             inputRetrievalIfStatement = 'if variables.get("' + inputParameter + '").get("type") == "String":'
             inputRetrievalIfBranch = '\n    ' + inputParameter + ' = variables.get("' + inputParameter + '").get("value")'
@@ -64,8 +65,18 @@ def generate_polling_agent(inputParameters, outputParameters):
             inputRetrieval = inputRetrievalIfStatement + inputRetrievalIfBranch + inputRetrievalElseBranch
             ifNode.insert(inputNodeIndex + 1, inputRetrieval)
 
+            # add parameter to dict passed to Qiskit Runtime program
+            inputDict[inputParameter] = inputParameter
+
         # remove the placeholder
         ifNode.remove(ifNode[inputNodeIndex])
+
+        # add retrieved input parameters to Qiskit Runtime program invocation
+        programInputsNode = ifNode.find('assign', target=lambda target: target and (target.value == 'program_inputs'))
+        inputJson = json.dumps(inputDict)
+        for inputParameter in inputParameters:
+            inputJson = inputJson.replace(': "' + inputParameter + '"', ': ' + inputParameter)
+        programInputsNode.value = inputJson
 
         # get the position of the output placeholders within the template
         outputNodeIndex = ifNode.index(ifNode.find('comment', recursive=True, value='##### STORE OUTPUT DATA SECTION'))

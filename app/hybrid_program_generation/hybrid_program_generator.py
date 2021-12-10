@@ -94,15 +94,15 @@ def create_hybrid_program(beforeLoop, afterLoop, loopCondition, taskIdProgramMap
         source_code.write(generate_program_metadata(inputParameters, outputParameters))
 
     # zip generated hybrid program and meta data files
-    hybridProgramData = zip_runtime_program(hybridProgramTemp, metaDataTemp)
+    hybridProgramData, fileName = zip_runtime_program(hybridProgramTemp, metaDataTemp)
 
-    # generate polling agend and write to file
+    # generate polling agent and write to file
     pollingAgentTemp = tempfile.NamedTemporaryFile(suffix=".py", delete=False)
     with open(pollingAgentTemp.name, "w") as source_code:
         source_code.write(generate_polling_agent(inputParameters, outputParameters))
 
     # zip polling agent
-    pollingAgentData = zip_polling_agent(templatesDirectory, pollingAgentTemp)
+    pollingAgentData = zip_polling_agent(templatesDirectory, pollingAgentTemp, fileName)
 
     # return generated Qiskit Runtime program and corresponding polling agent
     result = {'program': hybridProgramData, 'agent': pollingAgentData}
