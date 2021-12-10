@@ -5,9 +5,13 @@
 This service takes a workflow fragment realizing a hybrid algorithm as input and generated a [Qiskit Runtime](https://quantum-computing.ibm.com/lab/docs/iql/runtime/) program to benefit from speedups and reduce queueing times.
 Additionally, an agent is generated which handles the transfer of input/output parameters between the Qiskit Runtime program and a workflow.
 
+The qiskit-runtime-handler can be used in conjunction with the [QuantME Transformation Framework](https://github.com/UST-QuAntiL/QuantME-TransformationFramework).
+Please have a look at the corresponding [documentation](https://github.com/UST-QuAntiL/QuantME-TransformationFramework/tree/develop/docs/quantme/Analysis-and-Rewrite).
+Furthermore, a use case showing the analysis and rewrite of quantum workflows using the qiskit-runtime-handler is available [here](https://github.com/UST-QuAntiL/QuantME-UseCases/tree/master/2022-closer).
+
 ## Docker Setup
 
-* Clone repository:
+* Clone the repository:
 ```
 git clone https://github.com/UST-QuAntiL/qiskit-runtime-handler.git
 ```
