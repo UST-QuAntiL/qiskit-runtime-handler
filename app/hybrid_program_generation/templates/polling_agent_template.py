@@ -41,7 +41,7 @@ def poll():
                     backend = provider.get_backend(ibmq_backend)
                     program_inputs = {}
                     options = {'backend_name': backend.name()}
-                    job = provider.runtime.run(program_id=os.environ['PROGRAM_NAME'],
+                    job = provider.runtime.run(program_id=program_id,
                                                options=options,
                                                inputs=program_inputs,
                                                callback=interim_result_callback

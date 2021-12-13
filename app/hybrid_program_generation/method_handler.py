@@ -30,7 +30,8 @@ def add_method_recursively(hybridProgramBaron, taskFile, methodNode, prefix):
     assignmentNodes = methodNode.find_all('assignment', recursive=True)
 
     # replace all calls of qiskit.execute in this method to use the Qiskit Runtime backend
-    signatureExtendedWithBackend, parameterName = replace_qiskit_execute(assignmentNodes, methodNode)
+    signatureExtendedWithBackend, parameterName, backendSignaturePositions = replace_qiskit_execute(assignmentNodes,
+                                                                                                    methodNode)
 
     # iterate over all assignment nodes and check if they rely on a local method call
     for assignmentNode in assignmentNodes:
@@ -67,11 +68,25 @@ def add_method_recursively(hybridProgramBaron, taskFile, methodNode, prefix):
 
         # update invocation with new method name
         app.logger.info('Found new method invocation of local method: ' + calledMethodNameNode.value)
-        addedMethodName, inputParameterList, signatureExtended = add_method_recursively(hybridProgramBaron,
-                                                                                        taskFile,
-                                                                                        recursiveMethodNode,
-                                                                                        prefix)
+        addedMethodName, inputParameterList, signatureExtended, backendSignaturePositionsNew = add_method_recursively(
+            hybridProgramBaron,
+            taskFile,
+            recursiveMethodNode,
+            prefix)
         calledMethodNameNode.value = addedMethodName
+
+        # handle backend objects in called method
+        if backendSignaturePositionsNew:
+            app.logger.info('Added method defined backend as parameter at positions: ' + str(backendSignaturePositionsNew))
+            for backendSignaturePosition in backendSignaturePositionsNew:
+                parameter = assignmentValues.value[1].value[backendSignaturePosition]
+                extended, indices, parameterName = check_qiskit_backend_assignment(methodNode, assignmentNodes,
+                                                                                   parameterName,
+                                                                                   backendSignaturePositions,
+                                                                                   parameter.value.value)
+                for index in indices:
+                    if index not in backendSignaturePositions:
+                        backendSignaturePositions.append(index)
 
         # check if the signature of the invoked method was extended by the Qiskit Runtime backend
         if signatureExtended:
@@ -102,17 +117,16 @@ def add_method_recursively(hybridProgramBaron, taskFile, methodNode, prefix):
     # add the method to the given RedBaron object
     hybridProgramBaron.append('\n')
     hybridProgramBaron.append(methodNode)
-    return methodNode.name, inputParameterList, signatureExtendedWithBackend
+    return methodNode.name, inputParameterList, signatureExtendedWithBackend, backendSignaturePositions
 
 
 def replace_qiskit_execute(assignmentNodes, methodNode):
     """Search for a qiskit.execute() command which has to be replaced by backend.run() for Qiskit Runtime"""
     app.logger.info('Checking for qiskit.execute call in method: ' + methodNode.name)
 
-    # get a name for the qiskit runtime backend that is not already occupied
-    name = get_unused_method_parameter('backend', methodNode)
-
-    qiskitExecuteFound = False
+    name = None
+    signatureExtensionRequired = False
+    backendSignaturePositions = []
     for assignmentNode in assignmentNodes:
 
         # assignment requires a value
@@ -141,27 +155,43 @@ def replace_qiskit_execute(assignmentNodes, methodNode):
             continue
 
         # check if circuit to execute is explicitly defined under the 'experiments' parameters
-        argumentName = assignmentNode.value[2].value.find('call_argument',
-                                                          target=lambda target: target and (
-                                                                  target.value == 'experiments'))
+        circuitArgumentName = assignmentNode.value[2].value.find('call_argument',
+                                                                 target=lambda target: target and (
+                                                                         target.value == 'experiments'))
 
         # otherwise the circuit is the first positional argument
-        if argumentName:
-            argumentName = argumentName.value
+        if circuitArgumentName:
+            circuitArgumentName = circuitArgumentName.value
         else:
-            argumentName = assignmentNode.value[2].value[0].value
+            circuitArgumentName = assignmentNode.value[2].value[0].value
+
+        # check if backend to use is explicitly defined under the 'backend' parameters
+        backendArgumentName = assignmentNode.value[2].value.find('call_argument',
+                                                                 target=lambda target: target and (
+                                                                         target.value == 'backend'))
+
+        # otherwise the backend is the second positional argument
+        if backendArgumentName:
+            backendArgumentName = backendArgumentName.value
+        else:
+            backendArgumentName = assignmentNode.value[2].value[1].value
+        app.logger.info('Backend variable name for qiskit.execute(): ' + backendArgumentName.value)
+
+        # check if backend is assigned locally
+        signatureExtension, backendSignaturePositions, name = check_qiskit_backend_assignment(methodNode,
+                                                                                              assignmentNodes,
+                                                                                              name,
+                                                                                              backendSignaturePositions,
+                                                                                              backendArgumentName.value)
+        if signatureExtension:
+            # signature must be extended to pass the backend
+            signatureExtensionRequired = True
 
         # replace the call with the qiskit runtime backend call
         app.logger.info('Replacing qiskit.execute with call to Qiskit Runtime backend in method: ' + methodNode.name)
-        assignmentNode.value = name + ".run(" + argumentName.value + ")"
-        qiskitExecuteFound = True
+        assignmentNode.value = backendArgumentName.value + ".run(" + circuitArgumentName.value + ")"
 
-    # adapt the method signature with the new argument
-    if qiskitExecuteFound:
-        app.logger.info('Extending signature to support passing the required backend!')
-        methodNode.arguments.append(name)
-        return qiskitExecuteFound, name
-    return qiskitExecuteFound, None
+    return signatureExtensionRequired, name, backendSignaturePositions
 
 
 def get_unused_method_parameter(prefix, methodNode):
@@ -209,6 +239,46 @@ def get_output_parameters_of_execute(taskFile):
     else:
         # set of output parameters
         return [parameter.value for parameter in invokeExecuteNode.target.value]
+
+
+def check_qiskit_backend_assignment(methodNode, assignmentNodes, backendName, backendSignaturePositions, variableName):
+    """Check if the Qiskit backend for a circuit execution is assigned locally or in the method signature"""
+
+    backendAssignment = find_element_with_name(assignmentNodes, 'assign', variableName)
+    if backendAssignment:
+
+        if not backendName:
+            backendName = get_unused_method_parameter('backend', methodNode)
+            app.logger.info('Qiskit Runtime backend not yet available as variable in this method. '
+                            'Adding with name: ' + backendName)
+
+            # append to method signature
+            methodNode.arguments.append(backendName)
+
+        # instead pass Qiskit Runtime backend as parameter
+        backendAssignment.value = backendName
+
+        # signature must be extended to pass the backend
+        return True, backendSignaturePositions, backendName
+    else:
+        app.logger.info('Searching for parameter ' + variableName + ' within method signature')
+
+        # check if backend is passed through the signature
+        backendSignatureParam = find_element_with_name(methodNode.arguments, 'def_argument', variableName)
+        if backendSignatureParam:
+            # get position within the signature
+            backendSignaturePosition = methodNode.arguments.find_all('def_argument').index(backendSignatureParam)
+            if backendSignaturePosition not in backendSignaturePositions:
+                backendSignaturePositions.append(backendSignaturePosition)
+        else:
+            app.logger.error(
+                'Backend used for qiskit.execute neither defined as method parameter nor as local variable!')
+        return False, backendSignaturePositions, None
+
+
+def find_element_with_name(assignmentNodes, type, name):
+    """Get the RedBaron object with the given type and name out of the set of given RedBaron objects if available"""
+    return assignmentNodes.find(type, target=lambda target: target.type == 'name' and (target.value == name))
 
 
 def is_native_reference(name):

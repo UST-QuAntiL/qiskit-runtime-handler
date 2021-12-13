@@ -152,6 +152,7 @@ def generate_main_method(hybridProgramBaron, beforeLoop, afterLoop, loopConditio
                                                                                   programMetaData)
 
     # get values from required external input parameters
+    filteredInputs = []
     for requiredInput in requiredInputs:
         if requiredInput.startswith('backend'):
             # map the Qiskit Runtime backend to all backend parameters
@@ -159,6 +160,7 @@ def generate_main_method(hybridProgramBaron, beforeLoop, afterLoop, loopConditio
         else:
             # retrieve from input args
             mainMethodNode.insert(startPosition, requiredInput + ' = kwargs["' + requiredInput + '"]')
+            filteredInputs.append(requiredInput)
     mainMethodNode.insert(startPosition, '# loading input parameters')
     mainMethodNode.insert(startPosition, '\n')
 
@@ -173,7 +175,7 @@ def generate_main_method(hybridProgramBaron, beforeLoop, afterLoop, loopConditio
     mainMethodNode.append('\n')
     mainMethodNode.append('\n')
 
-    return hybridProgramBaron, requiredInputs, assignedVariables
+    return hybridProgramBaron, filteredInputs, assignedVariables
 
 
 def generate_program_metadata(inputParameters, outputParameters):
@@ -184,9 +186,8 @@ def generate_program_metadata(inputParameters, outputParameters):
                           "return_values": {"properties": {}}}}
 
     for inputParameter in inputParameters:
-        if not inputParameter.startswith('backend'):
-            meta_data['spec']['parameters']['properties'][inputParameter] = {"type": "string"}
-            meta_data['spec']['parameters']['required'].append(inputParameter)
+        meta_data['spec']['parameters']['properties'][inputParameter] = {"type": "string"}
+        meta_data['spec']['parameters']['required'].append(inputParameter)
 
     for outputParameter in outputParameters:
         meta_data['spec']['return_values']['properties'][outputParameter] = {"type": "string"}
@@ -254,9 +255,10 @@ def handle_program(hybridProgramBaron, path, task):
             raise Exception('Unable to retrieve output parameters of execute method in program: ' + basename(path))
 
         # add the execute method and all depending methods to the RedBaron object
-        methodName, inputParameterList, signatureExtendedWithBackend = add_method_recursively(hybridProgramBaron,
-                                                                                              taskFile,
-                                                                                              executeNode,
-                                                                                              task)
+        methodName, inputParameterList, signatureExtendedWithBackend, signatureExtendedIndices = add_method_recursively(
+            hybridProgramBaron,
+            taskFile,
+            executeNode,
+            task)
 
     return hybridProgramBaron, methodName, inputParameterList, outputParameterList
