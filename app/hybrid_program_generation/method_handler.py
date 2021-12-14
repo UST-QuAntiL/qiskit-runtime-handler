@@ -283,4 +283,4 @@ def find_element_with_name(assignmentNodes, type, name):
 
 def is_native_reference(name):
     """Check if the given name belongs to a natively supported method of Python"""
-    return name in ['int', 'str', 'len', 'filter', 'enumerate', 'float', 'list', 'dict', 'pow']
+    return name in ['int', 'str', 'len', 'filter', 'enumerate', 'float', 'list', 'dict', 'pow', 'sum']
