@@ -41,6 +41,7 @@ def poll():
                     backend = provider.get_backend(ibmq_backend)
                     program_inputs = {}
                     options = {'backend_name': backend.name()}
+                    print('Executing on device: ' + backend.name())
                     job = provider.runtime.run(program_id=program_id,
                                                options=options,
                                                inputs=program_inputs,
@@ -71,7 +72,11 @@ def download_data(url):
 
 
 # deploy the related Qiskit Runtime program on service startup
-provider = IBMQ.enable_account(os.environ['IBMQ_TOKEN'])
+ibmq_url = os.getenv('IBMQ_URL', "https://auth.quantum-computing.ibm.com/api")
+ibmq_hub = os.getenv('IBMQ_HUB', "ibm-q")
+ibmq_group = os.getenv('IBMQ_GROUP', "open")
+ibmq_project = os.getenv('IBMQ_PROJECT', "main")
+provider = IBMQ.enable_account(os.environ['IBMQ_TOKEN'], url=ibmq_url, hub=ibmq_hub, group=ibmq_group, project=ibmq_project)
 directory_to_extract_to = mkdtemp()
 with zipfile.ZipFile('hybrid_program.zip', 'r') as zip_ref:
     zip_ref.extractall(directory_to_extract_to)
