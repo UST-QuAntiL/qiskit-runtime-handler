@@ -50,6 +50,13 @@ def generate_hybrid_program():
     requiredPrograms = request.files['requiredPrograms']
     app.logger.info('Received request for hybrid program generation...')
 
+    # retrieve provenance collection boolean from request
+    if request.form.get('provenanceCollection'):
+        provenanceCollection = request.form.get('provenanceCollection').lower() == 'true'
+    else:
+        provenanceCollection = False
+    app.logger.info('Provenance collection intended for hybrid program: ' + str(provenanceCollection))
+
     # store file with required programs in local file and forward path to the workers
     directory = app.config["UPLOAD_FOLDER"]
     app.logger.info('Storing file comprising required programs at folder: ' + str(directory))
@@ -63,7 +70,8 @@ def generate_hybrid_program():
 
     # execute job asynchronously
     job = app.queue.enqueue('app.tasks.generate_hybrid_program', beforeLoop=beforeLoop, afterLoop=afterLoop,
-                            loopCondition=loopCondition, requiredProgramsUrl=url, job_timeout=18000)
+                            loopCondition=loopCondition, requiredProgramsUrl=url,
+                            provenanceCollection=provenanceCollection, job_timeout=18000)
     app.logger.info('Added job for hybrid program generation to the queue...')
     result = Result(id=job.get_id())
     db.session.add(result)

@@ -32,5 +32,6 @@ def main(backend, user_messenger, **kwargs) -> Any:
     Returns:
         Final result of the program.
     """
+    currentIteration = 1
 
     return "Done"

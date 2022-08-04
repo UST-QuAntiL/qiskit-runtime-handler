@@ -30,9 +30,10 @@ from app.hybrid_program_generation.polling_agent_handler import generate_polling
 from app.hybrid_program_generation.zip_handler import zip_polling_agent, zip_runtime_program
 
 
-def create_hybrid_program(beforeLoop, afterLoop, loopCondition, taskIdProgramMap):
+def create_hybrid_program(beforeLoop, afterLoop, loopCondition, taskIdProgramMap, provenanceCollection, jobId):
     app.logger.info('Creating Qiskit Runtime program with tasks before loop: ' + str(beforeLoop))
     app.logger.info('Creating Qiskit Runtime program with tasks after loop: ' + str(afterLoop))
+    app.logger.info('Adding statements for provenance collection: ' + str(provenanceCollection))
 
     # directory containing all templates required for generation
     templatesDirectory = os.path.join(os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file__))),
@@ -77,7 +78,8 @@ def create_hybrid_program(beforeLoop, afterLoop, loopCondition, taskIdProgramMap
         app.logger.info('Starting generation of main method for Qiskit Runtime program...')
         hybridProgramBaron, inputParameters, outputParameters = generate_main_method(hybridProgramBaron, beforeLoop,
                                                                                      afterLoop, loopCondition,
-                                                                                     programMetaData)
+                                                                                     programMetaData,
+                                                                                     provenanceCollection)
         app.logger.info('Successfully generated main method for Qiskit Runtime program...')
     except Exception as error:
         app.logger.error(error)
@@ -99,7 +101,7 @@ def create_hybrid_program(beforeLoop, afterLoop, loopCondition, taskIdProgramMap
     # generate polling agent and write to file
     pollingAgentTemp = tempfile.NamedTemporaryFile(suffix=".py", delete=False)
     with open(pollingAgentTemp.name, "w") as source_code:
-        source_code.write(generate_polling_agent(inputParameters, outputParameters))
+        source_code.write(generate_polling_agent(inputParameters, outputParameters, jobId))
 
     # zip polling agent
     pollingAgentData = zip_polling_agent(templatesDirectory, pollingAgentTemp, fileName)
@@ -109,7 +111,8 @@ def create_hybrid_program(beforeLoop, afterLoop, loopCondition, taskIdProgramMap
     return result
 
 
-def generate_main_method(hybridProgramBaron, beforeLoop, afterLoop, loopCondition, programMetaData):
+def generate_main_method(hybridProgramBaron, beforeLoop, afterLoop, loopCondition, programMetaData,
+                         provenanceCollection):
     """Generate the main method executing the hybrid loop"""
     app.logger.info('Generating main method for Qiskit Runtime program!')
 
@@ -137,19 +140,20 @@ def generate_main_method(hybridProgramBaron, beforeLoop, afterLoop, loopConditio
         for task in beforeLoop:
             whileNode, requiredInputs, assignedVariables = add_program_invocation(whileNode, requiredInputs,
                                                                                   assignedVariables, task,
-                                                                                  programMetaData)
+                                                                                  programMetaData, provenanceCollection)
 
     # add loop condition and break loop if meet
     loopCondition = loopCondition.replace('${', '').replace('}', '')  # remove Camunda specific evaluation
     whileNode.value.append('\n')
     whileNode.value.append('if not ' + loopCondition + ':\n    break')
+    whileNode.value.append('currentIteration += 1')
 
     # add tasks after the loop
     if afterLoop and afterLoop != 'null':
         for task in afterLoop:
             whileNode, requiredInputs, assignedVariables = add_program_invocation(whileNode, requiredInputs,
                                                                                   assignedVariables, task,
-                                                                                  programMetaData)
+                                                                                  programMetaData, provenanceCollection)
 
     # get values from required external input parameters
     filteredInputs = []
@@ -195,16 +199,29 @@ def generate_program_metadata(inputParameters, outputParameters):
     return json.dumps(meta_data)
 
 
-def add_program_invocation(whileNode, requiredInputs, assignedVariables, task, programMetaData):
+def add_program_invocation(whileNode, requiredInputs, assignedVariables, task, programMetaData, provenanceCollection):
     """Add the invocation for the program representing the given tasks under the given while node"""
     app.logger.info('Adding logic for task with ID ' + str(task))
     metaData = programMetaData[task]
     outputParameters = ', '.join(metaData['outputParameters'])
     inputParameters = ', '.join(metaData['inputParameters'])
 
+    # log currently executed task
+    if provenanceCollection:
+        executionTracking = 'user_messenger.publish("#####' + str(task) + '#####")'
+        whileNode.value.append(executionTracking)
+        iterationTracking = 'user_messenger.publish("currentIteration: " + currentIteration)'
+        whileNode.value.append(iterationTracking)
+
     # generate invocation
     invocation = outputParameters + ' = ' + metaData['methodName'] + '(' + inputParameters + ')'
     whileNode.value.append(invocation)
+
+    # log output parameters
+    if provenanceCollection:
+        for outputParameter in metaData['outputParameters']:
+            outputTracking = 'user_messenger.publish("' + str(outputParameter) + ': " + str(' + str(outputParameter) + '))'
+            whileNode.value.append(outputTracking)
 
     # check if invocation used not set variables and request them as input
     for inputParameter in metaData['inputParameters']:

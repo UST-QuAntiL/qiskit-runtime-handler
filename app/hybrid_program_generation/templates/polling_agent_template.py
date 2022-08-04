@@ -48,6 +48,14 @@ def poll():
                                                callback=interim_result_callback
                                                )
                     print(f"job id: {job.job_id()}")
+
+                    # send ID of running job to Camunda
+                    updateBody = {"modifications": {"$hybridJobId": {"value": str(job.job_id())}}}
+                    updateResponse = requests.post(pollingEndpoint + '/process-instance/'
+                                                   + externalTask['processInstanceId'] + '/variables', json=updateBody)
+                    print('Status code for updating variables with job ID: ' + str(updateResponse.status_code))
+
+                    # wait for result
                     result = job.result()
                     print(result)
 

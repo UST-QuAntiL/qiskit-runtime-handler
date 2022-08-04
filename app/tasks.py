@@ -31,7 +31,7 @@ import os
 import urllib.request
 
 
-def generate_hybrid_program(beforeLoop, afterLoop, loopCondition, requiredProgramsUrl):
+def generate_hybrid_program(beforeLoop, afterLoop, loopCondition, requiredProgramsUrl, provenanceCollection):
     """Generate the hybrid program for the given candidate and save the result in db"""
     job = get_current_job()
 
@@ -63,7 +63,8 @@ def generate_hybrid_program(beforeLoop, afterLoop, loopCondition, requiredProgra
 
     # create the hybrid program and a corresponding invoking agent
     programCreationResult = hybrid_program_generator.create_hybrid_program(beforeLoop, afterLoop, loopCondition,
-                                                                           taskIdProgramMap)
+                                                                           taskIdProgramMap, provenanceCollection,
+                                                                           job.get_id())
 
     # insert results into job object
     result = Result.query.get(job.get_id())

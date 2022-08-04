@@ -24,7 +24,7 @@ import string
 from redbaron import RedBaron
 
 
-def generate_polling_agent(inputParameters, outputParameters):
+def generate_polling_agent(inputParameters, outputParameters, jobId):
     """Generate a polling agent for the generated Qiskit Runtime program exchanging the
     required input/output with the Camunda BPMN engine"""
 
@@ -112,5 +112,8 @@ def generate_polling_agent(inputParameters, outputParameters):
     # workaround due to RedBaron bug which wrongly idents the exception
     pollingAgentString = pollingAgentBaron.dumps()
     pollingAgentString = pollingAgentString.replace("except Exception:", "    except Exception:")
+
+    # store Id of the current generation as variable name to later retrieve the ID of running hybrid programs
+    pollingAgentString = pollingAgentString.replace("$hybridJobId", "hybridJob-" + jobId)
 
     return pollingAgentString
