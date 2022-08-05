@@ -208,7 +208,7 @@ def add_program_invocation(whileNode, requiredInputs, assignedVariables, task, p
 
     # log currently executed task
     if provenanceCollection:
-        executionTracking = 'user_messenger.publish("#####' + str(task) + '#####")'
+        executionTracking = 'user_messenger.publish("activeTask: ' + str(task) + '")'
         whileNode.value.append(executionTracking)
         iterationTracking = 'user_messenger.publish("currentIteration: " + str(currentIteration))'
         whileNode.value.append(iterationTracking)

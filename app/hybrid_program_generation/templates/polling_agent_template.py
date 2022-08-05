@@ -31,6 +31,11 @@ def poll():
                 if externalTask.get('topicName') == topic:
                     print('Received execution request for process instance ID: ' + externalTask['processInstanceId'])
 
+                    # URL to update variables at Camunda
+                    hybridJobPrefix = '$hybridJobId'
+                    updateUrl = camundaEndpoint + '/process-instance/' + externalTask['processInstanceId'] \
+                                + '/variables/'
+
                     # load input data
                     ibmq_backend = variables.get('ibmq_backend').get('value')
 
@@ -38,7 +43,47 @@ def poll():
 
                     # callback to retrieve intermediate results
                     def interim_result_callback(job_id, interim_result):
-                        print(f"interim result: {interim_result}")
+                        print('Received new intermediate result...')
+
+                        # handle dict results
+                        if isinstance(interim_result, dict):
+                            print('Handling dict as intermediate result...')
+
+                            # iterate through all received intermediate results
+                            for key in interim_result.keys():
+                                print('Intermediate result contains key: ' + key)
+
+                                # skip too large results for now, which could only be stored as files
+                                if len(interim_result[key]) > 4000:
+                                    print('Skipping result as it exceeds the Camunda variable size...')
+                                    continue
+
+                                # send the intermediate result to Camunda
+                                updateIntermediateBody = {"value": interim_result[key], "type": "String"}
+                                updateIntermediateResponse = requests.put(updateUrl + hybridJobPrefix + '-' + key,
+                                                                          json=updateIntermediateBody)
+                                print('Status code for updating variables with job ID: '
+                                      + str(updateIntermediateResponse.status_code))
+
+                        # handle string results
+                        elif ':' in interim_result:
+                            print('Handling String as intermediate result...')
+                            intermediateParts = interim_result.split(':')
+                            if len(intermediateParts) == 2:
+                                variableName = intermediateParts[0].strip()
+                                variableValue = intermediateParts[1].strip()
+                                print('Received variable with name: ', variableName)
+
+                                # skip too large results for now, which could only be stored as files
+                                if len(variableValue) > 4000:
+                                    print('Skipping result as it exceeds the Camunda variable size...')
+                                else:
+                                    updateIntermediateBody = {"value": variableValue, "type": "String"}
+                                    updateIntermediateResponse = requests.put(updateUrl + hybridJobPrefix + '-'
+                                                                              + variableName,
+                                                                              json=updateIntermediateBody)
+                                    print('Status code for updating variables with job ID: '
+                                          + str(updateIntermediateResponse.status_code))
 
                     # invoke Qiskit Runtime program
                     backend = provider.get_backend(ibmq_backend)
@@ -53,11 +98,9 @@ def poll():
                     print(f"job id: {job.job_id()}")
 
                     # send ID of running job to Camunda
-                    updateUrl = pollingEndpoint + '/process-instance/' + externalTask['processInstanceId'] \
-                                + '/variables/$hybridJobId'
                     updateBody = {"value" : str(job.job_id()), "type": "String"}
                     print('Setting ID of Qiskit Runtime job under URL: ' + updateUrl)
-                    updateResponse = requests.put(updateUrl, json=updateBody)
+                    updateResponse = requests.put(updateUrl + hybridJobPrefix, json=updateBody)
                     print('Status code for updating variables with job ID: ' + str(updateResponse.status_code))
 
                     # wait for result
