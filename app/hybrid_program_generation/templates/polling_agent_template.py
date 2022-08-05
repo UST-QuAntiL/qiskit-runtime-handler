@@ -29,8 +29,11 @@ def poll():
                       + str(externalTask.get('id')))
                 variables = externalTask.get('variables')
                 if externalTask.get('topicName') == topic:
+                    print('Received execution request for process instance ID: ' + externalTask['processInstanceId'])
+
                     # load input data
                     ibmq_backend = variables.get('ibmq_backend').get('value')
+
                     ##### LOAD INPUT DATA SECTION
 
                     # callback to retrieve intermediate results
@@ -50,9 +53,11 @@ def poll():
                     print(f"job id: {job.job_id()}")
 
                     # send ID of running job to Camunda
-                    updateBody = {"modifications": {"$hybridJobId": {"value": str(job.job_id())}}}
-                    updateResponse = requests.post(pollingEndpoint + '/process-instance/'
-                                                   + externalTask['processInstanceId'] + '/variables', json=updateBody)
+                    updateUrl = pollingEndpoint + '/process-instance/' + externalTask['processInstanceId'] \
+                                + '/variables/$hybridJobId'
+                    updateBody = {"value" : str(job.job_id()), "type": "String"}
+                    print('Setting ID of Qiskit Runtime job under URL: ' + updateUrl)
+                    updateResponse = requests.put(updateUrl, json=updateBody)
                     print('Status code for updating variables with job ID: ' + str(updateResponse.status_code))
 
                     # wait for result
@@ -84,7 +89,8 @@ ibmq_url = os.getenv('IBMQ_URL', "https://auth.quantum-computing.ibm.com/api")
 ibmq_hub = os.getenv('IBMQ_HUB', "ibm-q")
 ibmq_group = os.getenv('IBMQ_GROUP', "open")
 ibmq_project = os.getenv('IBMQ_PROJECT', "main")
-provider = IBMQ.enable_account(os.environ['IBMQ_TOKEN'], url=ibmq_url, hub=ibmq_hub, group=ibmq_group, project=ibmq_project)
+provider = IBMQ.enable_account(os.environ['IBMQ_TOKEN'], url=ibmq_url, hub=ibmq_hub, group=ibmq_group,
+                               project=ibmq_project)
 directory_to_extract_to = mkdtemp()
 with zipfile.ZipFile('hybrid_program.zip', 'r') as zip_ref:
     zip_ref.extractall(directory_to_extract_to)

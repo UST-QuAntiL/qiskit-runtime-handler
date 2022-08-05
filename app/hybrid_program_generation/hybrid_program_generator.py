@@ -210,7 +210,7 @@ def add_program_invocation(whileNode, requiredInputs, assignedVariables, task, p
     if provenanceCollection:
         executionTracking = 'user_messenger.publish("#####' + str(task) + '#####")'
         whileNode.value.append(executionTracking)
-        iterationTracking = 'user_messenger.publish("currentIteration: " + currentIteration)'
+        iterationTracking = 'user_messenger.publish("currentIteration: " + str(currentIteration))'
         whileNode.value.append(iterationTracking)
 
     # generate invocation
