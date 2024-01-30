@@ -18,15 +18,15 @@
 # ******************************************************************************
 
 from sqlalchemy import LargeBinary
-from app import db
+from flask import current_app as app
 
 
-class Result(db.Model):
-    id = db.Column(db.String(36), primary_key=True)
-    program = db.Column('program', LargeBinary)
-    agent = db.Column('agent', LargeBinary)
-    error = db.Column(db.String(1200), default="")
-    complete = db.Column(db.Boolean, default=False)
+class Result(app.db.Model):
+    id = app.db.Column(app.db.String(36), primary_key=True)
+    program = app.db.Column('program', LargeBinary)
+    agent = app.db.Column('agent', LargeBinary)
+    error = app.db.Column(app.db.String(1200), default="")
+    complete = app.db.Column(app.db.Boolean, default=False)
 
     def __repr__(self):
         return 'Result {}'.format(self.complete)

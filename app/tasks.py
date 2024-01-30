@@ -25,7 +25,7 @@ from app.hybrid_program_generation import hybrid_program_generator
 from rq import get_current_job
 
 from app.hybrid_program_generation.zip_handler import search_python_file
-from app.result_model import Result
+from app.model.result_model import Result
 import zipfile
 import os
 import urllib.request
