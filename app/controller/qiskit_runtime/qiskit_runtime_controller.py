@@ -17,16 +17,23 @@
 #  limitations under the License.
 # ******************************************************************************
 
-from app import app, db
-from app.result_model import Result
+from flask_smorest import Blueprint
+from flask import current_app as app
 from flask import jsonify, abort, request, send_from_directory, url_for
 import logging
 import os
 import string
 import random
 
+blp = Blueprint(
+    "qiskit_runtime",
+    __name__,
+    url_prefix="/qiskit_runtime",
+    description="Generate Qiskit Runtime programs",
+)
 
-@app.route('/qiskit-runtime-handler/api/v1.0/generate-hybrid-program', methods=['POST'])
+
+@blp.route('/qiskit-runtime-handler/api/v1.0/generate-hybrid-program', methods=['POST'])
 def generate_hybrid_program():
     """Put hybrid program generation job in queue. Return location of the later result."""
 
@@ -48,32 +55,32 @@ def generate_hybrid_program():
     afterLoop = request.form.get('afterLoop')
     loopCondition = request.form.get('loopCondition')
     requiredPrograms = request.files['requiredPrograms']
-    app.logger.info('Received request for hybrid program generation...')
+    print('Received request for hybrid program generation...')
 
     # retrieve provenance collection boolean from request
     if request.form.get('provenanceCollection'):
         provenanceCollection = request.form.get('provenanceCollection').lower() == 'true'
     else:
         provenanceCollection = False
-    app.logger.info('Provenance collection intended for hybrid program: ' + str(provenanceCollection))
+    print('Provenance collection intended for hybrid program: ' + str(provenanceCollection))
 
     # store file with required programs in local file and forward path to the workers
     directory = app.config["UPLOAD_FOLDER"]
-    app.logger.info('Storing file comprising required programs at folder: ' + str(directory))
+    print('Storing file comprising required programs at folder: ' + str(directory))
     if not os.path.exists(directory):
         os.makedirs(directory)
     randomString = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
     fileName = 'required-programs' + randomString + '.zip'
     requiredPrograms.save(os.path.join(directory, fileName))
     url = url_for('download_uploaded_file', name=os.path.basename(fileName))
-    app.logger.info('File available via URL: ' + str(url))
+    print('File available via URL: ' + str(url))
 
     # execute job asynchronously
     job = app.queue.enqueue('app.tasks.generate_hybrid_program', beforeLoop=beforeLoop, afterLoop=afterLoop,
                             loopCondition=loopCondition, requiredProgramsUrl=url,
                             provenanceCollection=provenanceCollection, job_timeout=18000)
-    app.logger.info('Added job for hybrid program generation to the queue...')
-    result = Result(id=job.get_id())
+    print('Added job for hybrid program generation to the queue...')
+    result = app.model.result_model.Result(id=job.get_id())
     db.session.add(result)
     db.session.commit()
 
@@ -86,7 +93,7 @@ def generate_hybrid_program():
     return response
 
 
-@app.route('/qiskit-runtime-handler/api/v1.0/results/<result_id>', methods=['GET'])
+@blp.route('/qiskit-runtime-handler/api/v1.0/results/<result_id>', methods=['GET'])
 def get_result(result_id):
     """Return result when it is available."""
     result = Result.query.get(result_id)
@@ -114,16 +121,16 @@ def get_result(result_id):
         return jsonify({'id': result.id, 'complete': result.complete}), 200
 
 
-@app.route('/qiskit-runtime-handler/api/v1.0/uploads/<name>')
+@blp.route('/qiskit-runtime-handler/api/v1.0/uploads/<name>')
 def download_uploaded_file(name):
     return send_from_directory(app.config["UPLOAD_FOLDER"], name)
 
 
-@app.route('/qiskit-runtime-handler/api/v1.0/hybrid-programs/<name>')
+@blp.route('/qiskit-runtime-handler/api/v1.0/hybrid-programs/<name>')
 def download_generated_file(name):
     return send_from_directory(app.config["RESULT_FOLDER"], name)
 
 
-@app.route('/qiskit-runtime-handler/api/v1.0/version', methods=['GET'])
+@blp.route('/qiskit-runtime-handler/api/v1.0/version', methods=['GET'])
 def version():
     return jsonify({'version': '1.0'})

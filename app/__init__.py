@@ -18,21 +18,35 @@
 # ******************************************************************************
 
 from flask import Flask
-from app.config import Config
+from config import config
+from app.controller import register_blueprints
+from flask_smorest import Api
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from redis import Redis
 import rq
-from app import Config
-import logging
 
-app = Flask(__name__)
-app.config.from_object(Config)
-db = SQLAlchemy(app)
-migrate = Migrate(app, db)
 
-from app import routes, result_model, errors
+def create_app(config_name="default"):
+    print('Starting Flask app...')
 
-app.redis = Redis.from_url(app.config['REDIS_URL'])
-app.queue = rq.Queue('qiskit-runtime-handler', connection=app.redis, default_timeout=3600)
-app.logger.setLevel(logging.DEBUG)
+    app = Flask(__name__)
+    app.config.from_object(config[config_name])
+    config[config_name].init_app(app)
+
+    with app.app_context():
+
+        api = Api(app)
+        register_blueprints(api)
+
+        db = SQLAlchemy(app)
+        migrate = Migrate(app, db)
+
+        app.redis = Redis.from_url(app.config['REDIS_URL'])
+        app.queue = rq.Queue('qiskit-runtime-handler', connection=app.redis, default_timeout=3600)
+
+        @app.route("/")
+        def heartbeat():
+            return '<h1>Qiskit Runtime Handler is running</h1> <h3>View the API Docs <a href="/api/swagger-ui">here</a></h3>'
+
+    return app

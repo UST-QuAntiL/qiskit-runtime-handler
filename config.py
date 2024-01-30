@@ -29,3 +29,43 @@ class Config(object):
     REDIS_URL = os.environ.get('REDIS_URL') or 'redis://'
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or os.path.join(basedir, 'files')
     RESULT_FOLDER = os.environ.get('RESULT_FOLDER') or os.path.join(basedir, 'generated-files')
+
+    API_TITLE = "Qiskit Runtime Handler API"
+    API_VERSION = "1.0.0"
+    OPENAPI_VERSION = "3.0.2"
+    OPENAPI_URL_PREFIX = "/api"
+    OPENAPI_SWAGGER_UI_PATH = "/swagger-ui"
+    OPENAPI_SWAGGER_UI_VERSION = "3.24.2"
+    OPENAPI_SWAGGER_UI_URL = "https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/3.24.2/"
+
+    API_SPEC_OPTIONS = {
+        "info": {
+            "description": "This is the API Specification of the Qiskit Runtime Handler",
+        },
+        "license": {"name": "Apache v2 License"},
+    }
+
+    @staticmethod
+    def init_app(app):
+        pass
+
+
+class DevelopmentConfig(Config):
+    DEBUG = True
+
+
+class TestingConfig(Config):
+    TESTING = True
+    WTF_CSRF_ENABLED = False
+
+
+class ProductionConfig(Config):
+    pass
+
+
+config = {
+    "development": DevelopmentConfig,
+    "testing": TestingConfig,
+    "production": ProductionConfig,
+    "default": DevelopmentConfig,
+}

@@ -17,5 +17,11 @@
 #  limitations under the License.
 # ******************************************************************************
 
-from app import app, db
-from app.result_model import Result
+import os
+from app import create_app
+
+print('Starting Flask app...')
+app = create_app(os.getenv("FLASK_CONFIG") or "default")
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5073)
