@@ -27,7 +27,7 @@ import os
 
 def search_python_file(directory):
     # only .py are supported, also nested in zip files
-    containedPythonFiles = [f for f in listdir(os.path.join(directory)) if f.endswith('.py')]
+    containedPythonFiles = [f for f in listdir(os.path.join(directory)) if f.endswith('app.py')]
     if len(containedPythonFiles) >= 1:
         app.logger.info('Found Python file with name: ' + str(containedPythonFiles[0]))
 

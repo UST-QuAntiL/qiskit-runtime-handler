@@ -259,7 +259,8 @@ def handle_program(hybridProgramBaron, path, task):
         hybridProgramBaron[index:index] = importListFile
 
         # find the 'execute' method within the file
-        executeNodes = taskFile.find_all('def', name='execute')
+        # find the methods within the file that end with 'execute'
+        executeNodes = [node for node in taskFile.find_all('def') if node.name.endswith('execute')]
 
         # if not found abort the generation
         if len(executeNodes) != 1:

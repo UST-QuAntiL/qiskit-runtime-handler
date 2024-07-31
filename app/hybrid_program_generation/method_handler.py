@@ -227,7 +227,7 @@ def get_output_parameters_of_execute(taskFile):
     invokeExecuteNode = taskFile.find('assign', recursive=True,
                                       value=lambda value: value.type == 'atomtrailers'
                                                           and len(value.value) == 2
-                                                          and value.value[0].value == 'execute')
+                                                          and value.value[0].value.endswith('execute'))
 
     # generation has to be aborted if retrieval of output parameters fails
     if not invokeExecuteNode:
